@@ -7,24 +7,24 @@
 </head>
 <body>
   <header>
-    <h1>🚗 Import Kosten</h1>
+    <h1>🇳🇱 Import Kosten NL</h1>
   </header>
 
   <main>
-    <section class="input-section">
-      <label for="destinationCountry">Naar land</label>
-      <select id="destinationCountry">
-        <option value="NL">🇳🇱 Nederland</option>
-        <option value="BE">🇧🇪 België</option>
-        <option value="DE">🇩🇪 Duitsland</option>
-      </select>
-
+    <!-- Instellingen -->
+    <section class="section">
+      <h2>Instellingen</h2>
       <label class="checkbox-label">
-        <input type="checkbox" id="originOutsideEU" checked />
-        Auto van buiten de EU (invoerrechten 6,5%)
+        <input type="checkbox" id="originOutsideEU" />
+        Auto van buiten de EU (+ 6,5% invoerrechten)
       </label>
+    </section>
 
-      <label for="carPrice">Aankoopprijs (€)</label>
+    <!-- Handmatige berekening -->
+    <section class="section">
+      <h2>Handmatige berekening</h2>
+
+      <label for="carPrice">Vraagprijs (€)</label>
       <input type="number" id="carPrice" placeholder="bijv. 15000" min="0" />
 
       <label for="carYear">Bouwjaar</label>
@@ -37,19 +37,22 @@
         <option value="electric">Elektrisch</option>
         <option value="hybrid">Hybride</option>
       </select>
+
+      <label for="co2">CO₂ g/km <span class="optional">(optioneel)</span></label>
+      <input type="number" id="co2" placeholder="bijv. 138" min="0" max="400" />
+
+      <button id="calculateBtn">Bereken</button>
     </section>
 
-    <button id="calculateBtn">Bereken kosten</button>
-
-    <section class="results" id="results" hidden>
+    <!-- Resultaat -->
+    <section class="section results" id="results" hidden>
       <h2>Kostenopbouw</h2>
-      <div class="result-row"><span>Vraagprijs</span><span id="res-price">—</span></div>
-      <div class="result-row"><span>Invoerrechten</span><span id="res-import">—</span></div>
-      <div class="result-row"><span>BTW/MwSt</span><span id="res-btw">—</span></div>
-      <div class="result-row"><span>BPM / TMC</span><span id="res-bpm">—</span></div>
-      <div class="result-row"><span>Overige reg.</span><span id="res-roadside">—</span></div>
-      <div class="result-row total"><span>Totaal</span><span id="res-total">—</span></div>
-      <p id="res-disclaimer" class="disclaimer"></p>
+      <div class="row"><span>Vraagprijs</span>       <span id="r-price">—</span></div>
+      <div class="row"><span>Invoerrechten</span>    <span id="r-duty">—</span></div>
+      <div class="row"><span>BTW (21%)</span>        <span id="r-vat">—</span></div>
+      <div class="row"><span>BPM</span>              <span id="r-bpm">—</span></div>
+      <div class="row total"><span>Totaal</span>     <span id="r-total">—</span></div>
+      <p id="r-note" class="note"></p>
     </section>
   </main>
 

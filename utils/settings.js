@@ -1,21 +1,17 @@
 /**
- * Instellingen opslaan/lezen via chrome.storage.sync
+ * Instellingen via chrome.storage.sync
  *
- * Standaardinstellingen:
- *   destinationCountry: 'NL'
- *   originIsOutsideEU:  true  (bepaalt of invoerrechten gelden)
+ * Huidig ondersteunde instellingen:
+ *   originIsOutsideEU  {boolean}  true = invoerrechten 6,5% van toepassing
  */
 
 const DEFAULTS = {
-  destinationCountry: 'NL',
   originIsOutsideEU: true,
 };
 
 export function getSettings() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(DEFAULTS, (result) => {
-      resolve(result);
-    });
+    chrome.storage.sync.get(DEFAULTS, resolve);
   });
 }
 

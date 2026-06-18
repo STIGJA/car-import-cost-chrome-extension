@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Car Import Cost Calculator",
-  "version": "0.3.0",
-  "description": "Berekent de totale importkosten van een auto (BPM, TMC, BTW, invoerrechten) direct op de advertentiepagina.",
+  "version": "0.4.0",
+  "description": "Toont importkosten naar Nederland direct op AutoScout24 advertenties.",
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -18,14 +18,10 @@
   "content_scripts": [
     {
       "matches": [
-        "*://www.autoscout24.de/angebote/*",
-        "*://www.autoscout24.it/annunci/*",
-        "*://www.autoscout24.be/aanbod/*",
-        "*://www.autoscout24.fr/annonces/*",
-        "*://www.autoscout24.es/anuncios/*",
-        "*://www.autoscout24.nl/aanbod/*",
-        "*://suchen.mobile.de/fahrzeuge/*",
-        "*://www.mobile.de/auto/*"
+        "*://www.autoscout24.de/*",
+        "*://www.autoscout24.nl/*",
+        "*://www.autoscout24.be/*",
+        "*://www.autoscout24.fr/*"
       ],
       "js": ["content/content.js"],
       "css": ["content/widget.css"],
@@ -33,19 +29,13 @@
     }
   ],
   "permissions": [
-    "storage",
-    "scripting",
-    "tabs"
+    "storage"
   ],
   "host_permissions": [
     "*://www.autoscout24.de/*",
-    "*://www.autoscout24.it/*",
-    "*://www.autoscout24.be/*",
-    "*://www.autoscout24.fr/*",
-    "*://www.autoscout24.es/*",
     "*://www.autoscout24.nl/*",
-    "*://suchen.mobile.de/*",
-    "*://www.mobile.de/*"
+    "*://www.autoscout24.be/*",
+    "*://www.autoscout24.fr/*"
   ],
   "icons": {
     "16": "icons/icon-16.png",

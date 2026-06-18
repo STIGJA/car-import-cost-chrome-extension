@@ -4,41 +4,34 @@ import { getSettings, saveSettings } from '../utils/settings.js';
 const fmt = (n) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-// Laad opgeslagen instellingen
+// --- Laad instellingen ---
 getSettings().then((s) => {
-  document.getElementById('destinationCountry').value = s.destinationCountry;
   document.getElementById('originOutsideEU').checked = s.originIsOutsideEU;
 });
 
-// Sla instellingen op bij wijziging
-document.getElementById('destinationCountry').addEventListener('change', saveCurrentSettings);
-document.getElementById('originOutsideEU').addEventListener('change', saveCurrentSettings);
+document.getElementById('originOutsideEU').addEventListener('change', (e) => {
+  saveSettings({ originIsOutsideEU: e.target.checked });
+});
 
-function saveCurrentSettings() {
-  saveSettings({
-    destinationCountry: document.getElementById('destinationCountry').value,
-    originIsOutsideEU: document.getElementById('originOutsideEU').checked,
-  });
-}
-
-// Handmatige berekening
+// --- Berekening ---
 document.getElementById('calculateBtn').addEventListener('click', () => {
-  const price = parseFloat(document.getElementById('carPrice').value);
-  const year = parseInt(document.getElementById('carYear').value, 10);
+  const price    = parseFloat(document.getElementById('carPrice').value);
+  const year     = parseInt(document.getElementById('carYear').value, 10);
   const fuelType = document.getElementById('fuelType').value;
-  const destinationCountry = document.getElementById('destinationCountry').value;
+  const co2      = parseFloat(document.getElementById('co2').value) || null;
 
   if (!price || !year) return;
 
-  const costs = calculateImportCosts({ price, year, fuelType, destinationCountry });
+  const settings = { originIsOutsideEU: document.getElementById('originOutsideEU').checked };
+  const costs = calculateImportCosts({ price, year, fuelType, co2 }, settings);
 
-  document.getElementById('res-price').textContent = fmt(costs.price);
-  document.getElementById('res-bpm').textContent = costs.bpm > 0 ? fmt(costs.bpm) : '—';
-  document.getElementById('res-roadside').textContent = costs.roadsideTax ? fmt(costs.roadsideTax) : '—';
-  document.getElementById('res-btw').textContent = `${fmt(costs.vat)} (${costs.vatRate}%)`;
-  document.getElementById('res-import').textContent = fmt(costs.importDuty);
-  document.getElementById('res-total').textContent = fmt(costs.total);
+  document.getElementById('r-price').textContent = fmt(costs.price);
+  document.getElementById('r-duty').textContent  = costs.importDuty > 0 ? fmt(costs.importDuty) : '—';
+  document.getElementById('r-vat').textContent   = fmt(costs.vat);
+  document.getElementById('r-bpm').textContent   = costs.bpm > 0 ? fmt(costs.bpm) : '— (EV)';
+  document.getElementById('r-total').textContent = fmt(costs.total);
+  document.getElementById('r-note').textContent  =
+    co2 ? `BPM berekend op ${co2} g/km CO₂.` : 'BPM is een schatting (CO₂ onbekend).';
 
   document.getElementById('results').hidden = false;
-  document.getElementById('res-disclaimer').textContent = costs.disclaimer;
 });

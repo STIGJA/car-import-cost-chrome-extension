@@ -1,78 +1,26 @@
-/* ============================================================
-   Car Import Cost Widget
-   Prefix: cic-   (geen conflict met site-CSS)
+/* ===========================================================
+   Car Import Cost — widget stijlen
+   Prefix: cic-   (voorkomt conflicten met AS24 CSS)
 
-   Stijlstrategie:
-   - Standaard: eigen dark-mode stijlen (site-agnostisch)
-   - Als de site CSS custom properties heeft: die overnemen
-     via [data-site-vars="true"] selector
-   ============================================================ */
+   Stijl matcht het lichte kaartontwerp van AutoScout24:
+   witte achtergrond, subtiele rand, oranje accentkleur.
+   =========================================================== */
 
-/* --- Basis (eigen stijlen) --- */
-#car-import-cost-widget {
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  background: #1c1b19;
-  color: #cdccca;
-  border: 1px solid #393836;
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin: 16px 0;
-  max-width: 340px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  line-height: 1.5;
-}
+/* --- Listing widget (advertentiepagina) --- */
 
-/* --- AutoScout24: leent de lichtere achtergrondkleur van de kaartcontainers --- */
-#car-import-cost-widget[data-site="autoscout24"] {
-  /* AS24 gebruikt geen --color-* vars, maar wel een herkenbaar licht grijs kaartontwerp.
-     We imiteren dit met eigen waarden die visueel matchen. */
-  background: #f7f7f7;
+#cic-listing-widget {
+  font-family: inherit;         /* Neemt het lettertype van AS24 over */
+  font-size: 14px;
+  background: #ffffff;
   color: #1b1b1b;
   border: 1px solid #e0e0e0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 12px 0;
+  max-width: 100%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
 }
 
-#car-import-cost-widget[data-site="autoscout24"] .cic-title {
-  color: #1b1b1b;
-}
-
-#car-import-cost-widget[data-site="autoscout24"] .cic-table td {
-  border-bottom: 1px solid #e8e8e8;
-}
-
-#car-import-cost-widget[data-site="autoscout24"] .cic-total td {
-  color: #e5590b; /* AS24 primaire oranje accentkleur */
-}
-
-#car-import-cost-widget[data-site="autoscout24"] .cic-value {
-  color: #1b1b1b;
-}
-
-/* --- Mobile.de: matcht het blauwe kleurpalet --- */
-#car-import-cost-widget[data-site="mobile-de"] {
-  background: #ffffff;
-  color: #222222;
-  border: 1px solid #d6d6d6;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
-
-#car-import-cost-widget[data-site="mobile-de"] .cic-total td {
-  color: #0062b3; /* Mobile.de blauw */
-}
-
-/* --- Als de site wél CSS vars heeft: die overnemen --- */
-#car-import-cost-widget[data-site-vars="true"] {
-  background: var(--color-surface, #1c1b19);
-  color: var(--color-text, #cdccca);
-  border-color: var(--color-border, #393836);
-}
-
-#car-import-cost-widget[data-site-vars="true"] .cic-total td {
-  color: var(--color-primary, #4f98a3);
-}
-
-/* --- Gedeelde stijlen --- */
 .cic-header {
   display: flex;
   align-items: center;
@@ -80,47 +28,71 @@
   margin-bottom: 10px;
 }
 
-.cic-icon { font-size: 16px; }
+.cic-flag { font-size: 16px; line-height: 1; }
 
 .cic-title {
   font-weight: 700;
-  font-size: 13px;
-  flex: 1;
-}
-
-.cic-site {
-  font-size: 11px;
-  opacity: 0.45;
+  font-size: 14px;
+  color: #1b1b1b;
 }
 
 .cic-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 13px;
 }
 
 .cic-table td {
   padding: 5px 0;
-  border-bottom: 1px solid rgba(128,128,128,0.15);
+  border-bottom: 1px solid #f0f0f0;
   vertical-align: middle;
 }
 
 .cic-table tr:last-child td { border-bottom: none; }
 
-.cic-value {
+.cic-val {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  color: #1b1b1b;
 }
 
-.cic-total td {
+.cic-total-row td {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
+  color: #e5590b;   /* AS24 primaire oranje */
   padding-top: 8px;
-  color: #4f98a3;
+  border-top: 1px solid #e0e0e0;
 }
 
-.cic-disclaimer {
+.cic-note {
   margin-top: 8px;
-  font-size: 10px;
-  opacity: 0.45;
+  font-size: 11px;
+  color: #999;
   line-height: 1.4;
+}
+
+/* --- Zoekresultaten badge --- */
+
+.cic-badge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff7f3;
+  border: 1px solid #f5d5c0;
+  border-radius: 5px;
+  padding: 4px 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.cic-badge-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.cic-badge-value {
+  font-weight: 700;
+  color: #e5590b;
+  font-variant-numeric: tabular-nums;
 }
