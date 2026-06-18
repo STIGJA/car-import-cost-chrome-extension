@@ -1,0 +1,8 @@
+# Node (als je ooit een build tool toevoegt)
+node_modules/
+dist/
+.env
+
+# OS
+.DS_Store
+Thumbs.db

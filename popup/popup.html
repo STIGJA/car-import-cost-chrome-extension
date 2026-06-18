@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Car Import Cost</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>🚗 Import Kosten</h1>
+  </header>
+
+  <main>
+    <section class="input-section">
+      <label for="carPrice">Aankoopprijs (€)</label>
+      <input type="number" id="carPrice" placeholder="bijv. 15000" min="0" />
+
+      <label for="carYear">Bouwjaar</label>
+      <input type="number" id="carYear" placeholder="bijv. 2019" min="1990" max="2030" />
+
+      <label for="fuelType">Brandstof</label>
+      <select id="fuelType">
+        <option value="petrol">Benzine</option>
+        <option value="diesel">Diesel</option>
+        <option value="electric">Elektrisch</option>
+        <option value="hybrid">Hybride</option>
+      </select>
+    </section>
+
+    <button id="calculateBtn">Bereken kosten</button>
+
+    <section class="results" id="results" hidden>
+      <h2>Kostenopbouw</h2>
+      <div class="result-row">
+        <span>Aankoopprijs</span>
+        <span id="res-price">—</span>
+      </div>
+      <div class="result-row">
+        <span>BPM</span>
+        <span id="res-bpm">—</span>
+      </div>
+      <div class="result-row">
+        <span>BTW (21%)</span>
+        <span id="res-btw">—</span>
+      </div>
+      <div class="result-row">
+        <span>Invoerrechten</span>
+        <span id="res-import">—</span>
+      </div>
+      <div class="result-row total">
+        <span>Totaal</span>
+        <span id="res-total">—</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
