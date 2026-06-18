@@ -1,95 +1,77 @@
 /**
- * Scraper voor AutoScout24 advertentiepagina's.
- *
- * AutoScout24 gebruikt voor alle landsites (.de, .it, .be, etc.)
- * grotendeels dezelfde HTML-structuur. De selectors hieronder
- * zijn gebaseerd op de huidige DOM (juni 2026). Controleer bij
- * een layout-update of de selectors nog kloppen.
+ * Scraper plugin: AutoScout24
+ * Werkt op alle landversies (.de, .it, .be, .nl, .fr, .es)
  *
  * @returns {CarData|null}
- *
- * @typedef {Object} CarData
- * @property {number}  price      - Vraagprijs in EUR
- * @property {number|null} year   - Bouwjaar
- * @property {string}  fuelType   - 'petrol'|'diesel'|'electric'|'hybrid'
- * @property {string}  make       - Merk (bijv. 'BMW')
- * @property {string}  model      - Model (bijv. '3 Series')
- * @property {number|null} mileage - Kilometerstand
- * @property {string}  currency   - ISO-valutacode (bijv. 'EUR')
  */
 export function scrapeAutoscout24() {
   try {
     // --- Prijs ---
-    // AutoScout24 plaatst de prijs in [data-testid="price-section"] of een <span> met klasse die 'price' bevat
     const priceEl =
       document.querySelector('[data-testid="price-section"] .cldt-price') ??
       document.querySelector('[data-testid="price"]') ??
       document.querySelector('.cldt-price');
 
-    const priceRaw = priceEl?.textContent ?? '';
-    // Verwijder alles wat geen cijfer is (€, punt, komma, spaties)
-    const price = parsePrice(priceRaw);
-
+    const price = parseNumber(priceEl?.textContent);
     if (!price) return null;
 
     // --- Bouwjaar ---
-    const year = scrapeDetailValue(['Erstzulassung', 'First registration', 'Immatricolazione',
-      'Eerste registratie', '1ère mise en circulation', 'Primera matriculación']);
-    const parsedYear = year ? parseInt(year.slice(-4), 10) : null; // "01/2019" → 2019
+    const yearRaw = scrapeDetailValue([
+      'Erstzulassung', 'First registration', 'Immatricolazione',
+      'Eerste registratie', '1ère mise en circulation', 'Primera matriculación',
+    ]);
+    const year = yearRaw ? parseInt(yearRaw.slice(-4), 10) : null;
 
     // --- Brandstof ---
-    const fuelRaw = scrapeDetailValue(['Kraftstoff', 'Fuel type', 'Carburante',
-      'Brandstof', 'Carburant', 'Combustible']) ?? '';
+    const fuelRaw = scrapeDetailValue([
+      'Kraftstoff', 'Fuel type', 'Carburante', 'Brandstof', 'Carburant', 'Combustible',
+    ]) ?? '';
     const fuelType = normalizeFuelType(fuelRaw);
 
-    // --- Kilometerstand ---
-    const mileageRaw = scrapeDetailValue(['Kilometerstand', 'Mileage', 'Chilometri',
-      'Kilometerstand', 'Kilométrage', 'Kilometraje']) ?? '';
-    const mileage = parsePrice(mileageRaw); // zelfde parselogica: strip non-digits
+    // --- CO2 (voor nauwkeurigere BPM) ---
+    const co2Raw = scrapeDetailValue(['CO2-Emissionen', 'CO2 emissions', 'Emissioni CO2', 'CO2-uitstoot']);
+    const co2 = co2Raw ? parseNumber(co2Raw) : null;
 
-    // --- Merk & Model uit paginatitel ---
+    // --- Kilometerstand ---
+    const mileageRaw = scrapeDetailValue([
+      'Kilometerstand', 'Mileage', 'Chilometri', 'Kilométrage', 'Kilometraje',
+    ]);
+    const mileage = mileageRaw ? parseNumber(mileageRaw) : null;
+
+    // --- Merk & model ---
     const titleEl = document.querySelector('h1');
     const titleParts = titleEl?.textContent?.trim().split(' ') ?? [];
     const make = titleParts[0] ?? 'Onbekend';
     const model = titleParts.slice(1, 3).join(' ') || 'Onbekend';
 
-    return { price, year: parsedYear, fuelType, make, model, mileage, currency: 'EUR' };
+    return { price, year, fuelType, co2, make, model, mileage, currency: 'EUR' };
   } catch (e) {
-    console.warn('[CarImport] Scrape fout:', e);
+    console.warn('[CarImport] AutoScout24 scrape fout:', e);
     return null;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// --- Helpers ---
 
-/**
- * Zoekt een waarde in de detail-tabel op basis van een lijst van labelnamen.
- * AutoScout24 toont specs als <dt>Label</dt><dd>Waarde</dd> paren.
- */
 function scrapeDetailValue(labels) {
-  const dts = document.querySelectorAll('dt');
-  for (const dt of dts) {
-    const text = dt.textContent.trim();
-    if (labels.some((l) => text.toLowerCase().includes(l.toLowerCase()))) {
+  for (const dt of document.querySelectorAll('dt')) {
+    if (labels.some((l) => dt.textContent.trim().toLowerCase().includes(l.toLowerCase()))) {
       return dt.nextElementSibling?.textContent?.trim() ?? null;
     }
   }
   return null;
 }
 
-/** Strip alles behalve cijfers en zet om naar number. */
-function parsePrice(raw) {
+function parseNumber(raw) {
+  if (!raw) return null;
   const digits = raw.replace(/[^0-9]/g, '');
   return digits ? parseInt(digits, 10) : null;
 }
 
-/** Normaliseer brandstoftypes naar onze interne waarden. */
 function normalizeFuelType(raw) {
-  const lower = raw.toLowerCase();
-  if (lower.includes('elektr') || lower.includes('electric') || lower.includes('bev')) return 'electric';
-  if (lower.includes('diesel')) return 'diesel';
-  if (lower.includes('hybrid') || lower.includes('phev') || lower.includes('hev')) return 'hybrid';
-  return 'petrol'; // benzine / LPG / overig → petrol als fallback
+  const l = raw.toLowerCase();
+  if (l.includes('elektr') || l.includes('electric') || l.includes('bev')) return 'electric';
+  if (l.includes('diesel')) return 'diesel';
+  if (l.includes('hybrid') || l.includes('phev') || l.includes('hev')) return 'hybrid';
+  return 'petrol';
 }

@@ -2,7 +2,6 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Car Import Cost</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
@@ -13,6 +12,18 @@
 
   <main>
     <section class="input-section">
+      <label for="destinationCountry">Naar land</label>
+      <select id="destinationCountry">
+        <option value="NL">🇳🇱 Nederland</option>
+        <option value="BE">🇧🇪 België</option>
+        <option value="DE">🇩🇪 Duitsland</option>
+      </select>
+
+      <label class="checkbox-label">
+        <input type="checkbox" id="originOutsideEU" checked />
+        Auto van buiten de EU (invoerrechten 6,5%)
+      </label>
+
       <label for="carPrice">Aankoopprijs (€)</label>
       <input type="number" id="carPrice" placeholder="bijv. 15000" min="0" />
 
@@ -32,29 +43,16 @@
 
     <section class="results" id="results" hidden>
       <h2>Kostenopbouw</h2>
-      <div class="result-row">
-        <span>Aankoopprijs</span>
-        <span id="res-price">—</span>
-      </div>
-      <div class="result-row">
-        <span>BPM</span>
-        <span id="res-bpm">—</span>
-      </div>
-      <div class="result-row">
-        <span>BTW (21%)</span>
-        <span id="res-btw">—</span>
-      </div>
-      <div class="result-row">
-        <span>Invoerrechten</span>
-        <span id="res-import">—</span>
-      </div>
-      <div class="result-row total">
-        <span>Totaal</span>
-        <span id="res-total">—</span>
-      </div>
+      <div class="result-row"><span>Vraagprijs</span><span id="res-price">—</span></div>
+      <div class="result-row"><span>Invoerrechten</span><span id="res-import">—</span></div>
+      <div class="result-row"><span>BTW/MwSt</span><span id="res-btw">—</span></div>
+      <div class="result-row"><span>BPM / TMC</span><span id="res-bpm">—</span></div>
+      <div class="result-row"><span>Overige reg.</span><span id="res-roadside">—</span></div>
+      <div class="result-row total"><span>Totaal</span><span id="res-total">—</span></div>
+      <p id="res-disclaimer" class="disclaimer"></p>
     </section>
   </main>
 
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>
