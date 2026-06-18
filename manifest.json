@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Car Import Cost Calculator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Berekent de totale importkosten van een auto (BPM, BTW, invoerrechten) direct op de pagina.",
   "action": {
     "default_popup": "popup/popup.html",
@@ -17,8 +17,16 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "*://www.autoscout24.de/angebote/*",
+        "*://www.autoscout24.it/annunci/*",
+        "*://www.autoscout24.be/aanbod/*",
+        "*://www.autoscout24.fr/annonces/*",
+        "*://www.autoscout24.es/anuncios/*",
+        "*://www.autoscout24.nl/aanbod/*"
+      ],
       "js": ["content/content.js"],
+      "css": ["content/widget.css"],
       "run_at": "document_idle"
     }
   ],
@@ -28,7 +36,12 @@
     "tabs"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "*://www.autoscout24.de/*",
+    "*://www.autoscout24.it/*",
+    "*://www.autoscout24.be/*",
+    "*://www.autoscout24.fr/*",
+    "*://www.autoscout24.es/*",
+    "*://www.autoscout24.nl/*"
   ],
   "icons": {
     "16": "icons/icon-16.png",

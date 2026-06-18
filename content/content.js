@@ -1,24 +1,37 @@
-// Content Script — draait in de context van de webpagina
-// Heeft toegang tot de DOM, maar NIET tot chrome.storage direct
+/**
+ * Content Script — AutoScout24 scraper + widget injector
+ *
+ * Scrapet de advertentiepagina voor:
+ *   - Prijs, bouwjaar, brandstoftype, merk/model, kilometerstand
+ * Injecteert daarna een klein kostenwidget direct op de pagina.
+ */
 
-(function () {
+import { calculateImportCosts } from '../utils/calculator.js';
+import { scrapeAutoscout24 } from './scrapers/autoscout24.js';
+import { injectWidget, updateWidget } from './widget.js';
+
+(async function () {
   'use strict';
 
-  // Stuur paginadata naar de background service worker
-  function sendPageData(data) {
-    chrome.runtime.sendMessage({ type: 'PAGE_DATA', payload: data });
+  // Detecteer welke site we zijn op basis van hostname
+  const host = window.location.hostname; // bijv. 'www.autoscout24.de'
+
+  let carData = null;
+
+  if (host.includes('autoscout24')) {
+    carData = scrapeAutoscout24();
   }
 
-  // Voorbeeld: detecteer autoprijzen op de huidige pagina
-  function detectCarData() {
-    // TODO: implementeer site-specifieke selectors
-    // bijv. voor AutoScout24, Marktplaats, Mobile.de etc.
-    const data = {
-      url: window.location.href,
-      title: document.title,
-    };
-    sendPageData(data);
-  }
+  // Geen data gevonden — stil afsluiten
+  if (!carData || !carData.price) return;
 
-  detectCarData();
+  // Bereken kosten
+  const costs = calculateImportCosts({
+    price: carData.price,
+    year: carData.year ?? new Date().getFullYear() - 3,
+    fuelType: carData.fuelType ?? 'petrol',
+  });
+
+  // Injecteer widget op de pagina
+  injectWidget(carData, costs);
 })();

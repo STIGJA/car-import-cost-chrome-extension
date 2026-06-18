@@ -1,0 +1,71 @@
+/* ============================================================
+   Car Import Cost Widget — geïnjecteerd op AutoScout24 pagina's
+   Gebruik een uniek prefix (cic-) om conflicten te vermijden.
+   ============================================================ */
+
+#car-import-cost-widget {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  background: #1c1b19;
+  color: #cdccca;
+  border: 1px solid #393836;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 16px 0;
+  max-width: 340px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.cic-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.cic-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.cic-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #f0efec;
+  letter-spacing: 0.01em;
+}
+
+.cic-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cic-table td {
+  padding: 5px 0;
+  border-bottom: 1px solid #2d2c2a;
+  vertical-align: middle;
+}
+
+.cic-table tr:last-child td {
+  border-bottom: none;
+}
+
+.cic-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #e0dfdb;
+}
+
+.cic-total td {
+  font-weight: 700;
+  font-size: 14px;
+  color: #4f98a3;
+  padding-top: 8px;
+}
+
+.cic-disclaimer {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #5a5957;
+  line-height: 1.4;
+}
