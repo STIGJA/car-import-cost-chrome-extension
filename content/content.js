@@ -2,40 +2,43 @@
  * Content Script — AutoScout24
  *
  * CO2-strategie:
- *  1. Probeer CO2 uit de DOM te scrapen (dt/dd structuur)
- *  2. Als gevonden: gebruik die waarde, maar vergelijk met lookup-schatting
- *     en toon een warning als ze >20 g/km of >15% afwijken
- *  3. Als niet gevonden: gebruik lookup op basis van euronorm + vermogen + bouwjaar
- *     en toon duidelijk dat het een schatting is + de confidence
+ *   1. Probeer CO2 uit de DOM te scrapen
+ *   2. Indien gevonden: gebruik die waarde; vergelijk met lookup en log een
+ *      console.warn als ze >20 g/km / >15% afwijken
+ *   3. Indien niet gevonden: gebruik lookup (euronorm + vermogen, of bouwjaar)
+ *      en toon een ⚠️ tooltip-icoon achter de BPM-regel
+ *
+ * BTW: alleen bij auto's jonger dan 6 maanden (nieuwprijs-regel)
  */
 
 (async function () {
   'use strict';
 
   // -------------------------------------------------------------------------
-  // Inline: co2-lookup.js (gebundeld, geen ES module imports)
+  // Inlined: co2-lookup.js
+  // (Chrome content scripts ondersteunen geen ES module imports)
   // -------------------------------------------------------------------------
 
   const EURO_POWER_TABLE = {
     petrol: {
-      'euro6d':      [118, 130, 142, 158, 175, 210],
-      'euro6d-temp': [122, 135, 148, 165, 182, 218],
-      'euro6c':      [126, 140, 154, 172, 190, 228],
-      'euro6b':      [130, 146, 162, 180, 200, 240],
-      'euro6':       [130, 146, 162, 180, 200, 240],
+      'euro6d':      [118, 130, 142, 158, 175, 230],
+      'euro6d-temp': [122, 135, 148, 165, 182, 235],
+      'euro6c':      [126, 140, 154, 172, 190, 238],
+      'euro6b':      [130, 146, 162, 180, 200, 242],
+      'euro6':       [130, 146, 162, 180, 200, 242],
       'euro5':       [138, 154, 172, 192, 215, 258],
       'euro4':       [148, 166, 186, 208, 232, 278],
       'euro3':       [160, 180, 202, 226, 252, 300],
     },
     diesel: {
-      'euro6d':      [112, 122, 132, 145, 162, 190],
-      'euro6d-temp': [116, 126, 138, 152, 170, 200],
-      'euro6c':      [120, 132, 145, 160, 178, 210],
-      'euro6b':      [125, 138, 152, 168, 188, 222],
-      'euro6':       [125, 138, 152, 168, 188, 222],
-      'euro5':       [132, 146, 162, 180, 200, 238],
-      'euro4':       [140, 156, 174, 194, 216, 258],
-      'euro3':       [152, 170, 190, 212, 236, 282],
+      'euro6d':      [112, 122, 132, 122, 148, 158],
+      'euro6d-temp': [116, 126, 138, 128, 155, 165],
+      'euro6c':      [120, 132, 145, 135, 162, 172],
+      'euro6b':      [125, 138, 152, 142, 170, 182],
+      'euro6':       [125, 138, 152, 142, 170, 182],
+      'euro5':       [132, 146, 140, 125, 148, 178],
+      'euro4':       [140, 156, 155, 138, 162, 195],
+      'euro3':       [152, 170, 170, 155, 180, 215],
     },
     hybrid: {
       'euro6d':      [ 88,  98, 108, 118, 132, 155],
@@ -50,9 +53,9 @@
   };
 
   const YEAR_FALLBACK = {
-    petrol:  { 2024:138,2023:142,2022:146,2021:150,2020:152,2019:155,2018:158,2017:162,2016:166,2015:170,2014:175,2013:180,2012:185,2011:190,2010:196,2009:202,2008:210,2007:218,2006:225,2005:232 },
-    diesel:  { 2024:132,2023:136,2022:140,2021:144,2020:146,2019:150,2018:154,2017:158,2016:162,2015:165,2014:170,2013:174,2012:178,2011:183,2010:188,2009:194,2008:202,2007:210,2006:218,2005:226 },
-    hybrid:  { 2024: 95,2023: 98,2022:102,2021:106,2020:108,2019:112,2018:116,2017:120,2016:125,2015:130,2014:135,2013:140,2012:145,2011:150,2010:156 },
+    petrol:  {2024:138,2023:142,2022:146,2021:150,2020:152,2019:155,2018:158,2017:162,2016:166,2015:170,2014:175,2013:180,2012:185,2011:190,2010:196,2009:202,2008:210,2007:218,2006:225,2005:232},
+    diesel:  {2024:128,2023:132,2022:136,2021:140,2020:143,2019:147,2018:151,2017:155,2016:159,2015:162,2014:167,2013:171,2012:175,2011:179,2010:184,2009:190,2008:198,2007:206,2006:214,2005:222},
+    hybrid:  {2024: 95,2023: 98,2022:102,2021:106,2020:108,2019:112,2018:116,2017:120,2016:125,2015:130,2014:135,2013:140,2012:145,2011:150,2010:156},
     electric:{},
   };
 
@@ -80,37 +83,35 @@
   }
 
   function estimateCO2FromSpecs({ fuelType, euroNorm, powerKw, year }) {
-    if (fuelType === 'electric') return { co2: 0, method: 'electric', confidence: 'exact' };
+    if (fuelType === 'electric') return { co2: 0, method: 'elektrisch', confidence: 'exact' };
     const fuel = fuelType in EURO_POWER_TABLE ? fuelType : 'petrol';
     const normEuro = normalizeEuroNorm(euroNorm);
-
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro] && powerKw) {
-      const co2 = EURO_POWER_TABLE[fuel][normEuro][powerBracket(powerKw)];
-      return { co2, method: `euronorm(${normEuro})+vermogen(${powerKw}kW)`, confidence: 'medium' };
+      return { co2: EURO_POWER_TABLE[fuel][normEuro][powerBracket(powerKw)], method: `${normEuro} + ${powerKw}\u00a0kW`, confidence: 'medium' };
     }
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro]) {
-      const co2 = EURO_POWER_TABLE[fuel][normEuro][2];
-      return { co2, method: `euronorm(${normEuro})`, confidence: 'low' };
+      return { co2: EURO_POWER_TABLE[fuel][normEuro][2], method: normEuro, confidence: 'low' };
     }
     if (year && YEAR_FALLBACK[fuel]) {
-      const yearKey = Math.max(2005, Math.min(2024, year));
-      const co2 = YEAR_FALLBACK[fuel][yearKey];
-      if (co2) return { co2, method: `bouwjaar(${yearKey})`, confidence: 'low' };
+      const y = Math.max(2005, Math.min(2024, year));
+      const co2 = YEAR_FALLBACK[fuel][y];
+      if (co2) return { co2, method: `bouwjaar ${y}`, confidence: 'low' };
     }
-    const hardFallback = { petrol: 155, diesel: 160, hybrid: 120, electric: 0 };
-    return { co2: hardFallback[fuel] ?? 155, method: 'fallback', confidence: 'very-low' };
+    const fallback = { petrol: 155, diesel: 145, hybrid: 120, electric: 0 };
+    return { co2: fallback[fuel] ?? 155, method: 'standaard', confidence: 'very-low' };
   }
 
-  function checkCO2Deviation(scraped, estimated) {
+  function checkCO2DeviationWarn(scraped, estimated, label) {
     const diff = Math.abs(scraped - estimated);
     const pct  = Math.round((diff / scraped) * 100);
-    const warn = diff >= 20 || pct >= 15;
-    return {
-      warn, diff, pct,
-      message: warn
-        ? `\u26a0\ufe0f Opgegeven CO\u2082 (${scraped}\u00a0g/km) wijkt ${diff}\u00a0g/km\u00a0(${pct}%) af van de schatting (${estimated}\u00a0g/km). Controleer of de waarde WLTP is.`
-        : null,
-    };
+    if (diff >= 20 || pct >= 15) {
+      console.warn(
+        `[CarImport] CO\u2082-afwijking${label ? ' (' + label + ')' : ''}: ` +
+        `pagina ${scraped}\u00a0g/km vs schatting ${estimated}\u00a0g/km ` +
+        `(verschil ${scraped > estimated ? '+' : ''}${scraped - estimated}\u00a0g/km, ${pct}%). ` +
+        `Controleer of de advertentie WLTP-waarden gebruikt.`
+      );
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -141,17 +142,50 @@
     return t[Math.min(age, t.length - 1)];
   }
 
-  function calculateImportCosts({ price, year, fuelType, co2 }, settings = {}) {
-    const outsideEU     = settings.originIsOutsideEU ?? true;
+  /**
+   * BTW (21%) is alleen van toepassing bij auto's jonger dan 6 maanden
+   * (marge-regeling: gebruikte auto's worden zonder BTW verhandeld)
+   */
+  function isNewCar(firstRegDate) {
+    if (!firstRegDate) return false;
+    // firstRegDate als Date-object of ISO-string of "MM/YYYY"
+    let d;
+    if (firstRegDate instanceof Date) {
+      d = firstRegDate;
+    } else {
+      const parts = String(firstRegDate).match(/(\d{1,2})[\/-](\d{4})/);
+      if (parts) d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, 1);
+      else d = new Date(firstRegDate);
+    }
+    if (isNaN(d)) return false;
+    const ageMonths = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+    return ageMonths < 6;
+  }
+
+  function calculateImportCosts({ price, firstRegDate, fuelType, co2 }, settings = {}) {
+    const outsideEU      = settings.originIsOutsideEU ?? true;
     const importDutyRate = outsideEU ? 6.5 : 0;
-    const importDuty    = Math.round(price * importDutyRate / 100);
-    const vat           = Math.round((price + importDuty) * 0.21);
+    const importDuty     = Math.round(price * importDutyRate / 100);
+
+    // BTW alleen bij nieuwe auto (<6 maanden)
+    const newCar = isNewCar(firstRegDate);
+    const vat    = newCar ? Math.round((price + importDuty) * 0.21) : 0;
+
     let bpm = 0;
     if (fuelType !== 'electric') {
-      const age = Math.max(0, new Date().getFullYear() - (year ?? new Date().getFullYear() - 3));
-      bpm = Math.round(co2ToBPM(co2, fuelType) * (1 - getDepreciation(age)));
+      // Leeftijd voor depreciatie: gebruik huidig jaar als geen datum bekend
+      let ageYears = 3; // veilige standaard
+      if (firstRegDate) {
+        let d;
+        const parts = String(firstRegDate).match(/(\d{1,2})[\/-](\d{4})/);
+        if (parts) d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, 1);
+        else d = new Date(firstRegDate);
+        if (!isNaN(d)) ageYears = Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 365.25)));
+      }
+      bpm = Math.round(co2ToBPM(co2, fuelType) * (1 - getDepreciation(ageYears)));
     }
-    return { price, importDuty, importDutyRate, vat, bpm, total: Math.round(price + importDuty + vat + bpm) };
+
+    return { price, importDuty, importDutyRate, vat, newCar, bpm, total: Math.round(price + importDuty + vat + bpm) };
   }
 
   // -------------------------------------------------------------------------
@@ -162,12 +196,6 @@
     if (!raw) return null;
     const digits = raw.replace(/[^0-9]/g, '');
     return digits ? parseInt(digits, 10) : null;
-  }
-
-  function parseYear(raw) {
-    if (!raw) return null;
-    const m = raw.match(/(19|20)\d{2}/);
-    return m ? parseInt(m[0], 10) : null;
   }
 
   function normalizeFuelType(raw) {
@@ -209,51 +237,52 @@
     const price = scrapePrice();
     if (!price) return null;
 
-    const year    = parseYear(scrapeDetailValue(['Erstzulassung','First registration','Eerste registratie','1\u00e8re mise en circulation']));
-    const fuelRaw = scrapeDetailValue(['Kraftstoff','Fuel type','Brandstof','Carburant']) ?? '';
-    const co2Raw  = scrapeDetailValue(['CO2-Emissionen','CO2 emissions','CO2-uitstoot','\u00c9missions CO2','CO\u2082']);
-    const mileageRaw = scrapeDetailValue(['Kilometerstand','Mileage','Kilom\u00e9trage']);
+    // Eerste registratie als ruwe string (bijv. "03/2021" of "Mar 2021")
+    const firstRegRaw = scrapeDetailValue(['Erstzulassung','First registration','Eerste registratie','1\u00e8re mise en circulation']);
+    const fuelRaw     = scrapeDetailValue(['Kraftstoff','Fuel type','Brandstof','Carburant']) ?? '';
+    const co2Raw      = scrapeDetailValue(['CO2-Emissionen','CO2 emissions','CO2-uitstoot','\u00c9missions CO2','CO\u2082']);
+    const powerRaw    = scrapeDetailValue(['Leistung','Power','Vermogen','Puissance']);
+    const euroRaw     = scrapeDetailValue(['Schadstoffklasse','Emission class','Emissieklasse','Classe d\u2019\u00e9mission','Euro']);
+    const mileageRaw  = scrapeDetailValue(['Kilometerstand','Mileage','Kilom\u00e9trage']);
 
-    // Extra velden voor lookup
-    const powerRaw   = scrapeDetailValue(['Leistung','Power','Vermogen','Puissance']);
-    const euroRaw    = scrapeDetailValue(['Schadstoffklasse','Emission class','Emissieklasse','Classe d\u2019\u00e9mission','Euro']);
-
-    // Vermogen: AS24 toont bijv. "135 kW (184 PS)" — pak het kW-getal
+    // Vermogen: "135 kW (184 PS)" → 135
     let powerKw = null;
     if (powerRaw) {
-      const kwMatch = powerRaw.match(/(\d+)\s*kW/);
-      const psMatch = powerRaw.match(/(\d+)\s*(PS|pk|hp|cv)/i);
-      if (kwMatch)      powerKw = parseInt(kwMatch[1], 10);
-      else if (psMatch) powerKw = Math.round(parseInt(psMatch[1], 10) * 0.7355);
+      const kwM = powerRaw.match(/(\d+)\s*kW/);
+      const psM = powerRaw.match(/(\d+)\s*(PS|pk|hp|cv)/i);
+      if (kwM)      powerKw = parseInt(kwM[1], 10);
+      else if (psM) powerKw = Math.round(parseInt(psM[1], 10) * 0.7355);
     }
 
-    const fuelType = normalizeFuelType(fuelRaw);
+    const fuelType   = normalizeFuelType(fuelRaw);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
+    const estimation = estimateCO2FromSpecs({ fuelType, euroNorm: euroRaw, powerKw, year: firstRegRaw ? parseInt(firstRegRaw.match(/\d{4}/)?.[0]) : null });
 
-    // CO2 bepalen + eventuele warning
-    let co2Final, co2Source, co2Warning = null;
-    const estimation = estimateCO2FromSpecs({ fuelType, euroNorm: euroRaw, powerKw, year });
-
+    let co2Final, co2IsEstimated = false;
     if (co2Scraped && co2Scraped > 0) {
-      co2Final  = co2Scraped;
-      co2Source = 'pagina';
-      const dev = checkCO2Deviation(co2Scraped, estimation.co2);
-      if (dev.warn) co2Warning = dev.message;
+      co2Final = co2Scraped;
+      // Warning alleen in console
+      checkCO2DeviationWarn(co2Scraped, estimation.co2, `${price}\u20ac`);
     } else {
-      co2Final  = estimation.co2;
-      co2Source = `schatting (${estimation.method})`;
+      co2Final       = estimation.co2;
+      co2IsEstimated = true;
     }
 
-    console.log('[CarImport]', { price, year, fuelType, co2Final, co2Source, co2Warning, powerKw, euroRaw });
+    console.log('[CarImport]', {
+      price, firstRegRaw, fuelType,
+      co2Final, co2IsEstimated,
+      estimation: `${estimation.co2} g/km via ${estimation.method} (${estimation.confidence})`,
+      powerKw, euroRaw,
+    });
 
     return {
       price,
-      year,
+      firstRegDate: firstRegRaw,
       fuelType,
       co2: co2Final,
-      co2Source,
-      co2Confidence: co2Scraped ? 'scraped' : estimation.confidence,
-      co2Warning,
+      co2IsEstimated,
+      co2EstimationMethod: co2IsEstimated ? estimation.method : null,
+      co2Confidence: co2IsEstimated ? estimation.confidence : 'scraped',
       mileage: mileageRaw ? parseNumber(mileageRaw) : null,
     };
   }
@@ -268,49 +297,46 @@
     const fmt = (n) =>
       new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-    const confidenceLabel = {
-      'scraped':   { icon: '\u2705', text: 'van de advertentie', color: '#2e7d32' },
-      'medium':    { icon: '\u26a0\ufe0f', text: 'geschat (euronorm + vermogen)', color: '#e65100' },
-      'low':       { icon: '\u26a0\ufe0f', text: 'geschat (beperkte data)', color: '#e65100' },
-      'very-low':  { icon: '\u274c', text: 'ruwe schatting', color: '#c62828' },
-      'exact':     { icon: '\u2705', text: 'elektrisch (0 g/km)', color: '#2e7d32' },
-    };
-    const cl = confidenceLabel[carData.co2Confidence] ?? confidenceLabel['low'];
+    // BPM-label: toon CO2-basis + eventueel ⚠️ icoon
+    const co2Label = carData.co2IsEstimated
+      ? `BPM <span style="color:#888;font-weight:400;font-size:12px">o.b.v. ${carData.co2}\u00a0g/km CO\u2082` +
+        ` <span title="CO\u2082 niet gevonden op pagina\u00a0\u2014 geschat via ${carData.co2EstimationMethod}" ` +
+        `style="cursor:help;color:#e65100;">\u26a0\ufe0f</span></span>`
+      : `BPM <span style="color:#888;font-weight:400;font-size:12px">o.b.v. ${carData.co2}\u00a0g/km CO\u2082</span>`;
 
-    const warningRow = carData.co2Warning
-      ? `<tr><td colspan="2" style="padding-top:6px;font-size:12px;color:#b71c1c;">${carData.co2Warning}</td></tr>`
+    const vatRow = costs.vat > 0
+      ? `<tr><td>BTW (21%)</td><td style="text-align:right">${fmt(costs.vat)}</td></tr>`
+      : '';
+
+    const bpmRow = costs.bpm > 0
+      ? `<tr><td>${co2Label}</td><td style="text-align:right">${fmt(costs.bpm)}</td></tr>`
       : '';
 
     const widget = document.createElement('div');
     widget.id = 'cic-listing-widget';
     widget.style.cssText = `
-      background:#fff3e0; border:2px solid #ff9800; border-radius:8px;
-      padding:12px 16px; margin:12px 0; font-family:sans-serif; font-size:14px;
+      background:#fff3e0;border:2px solid #ff9800;border-radius:8px;
+      padding:12px 16px;margin:12px 0;font-family:sans-serif;font-size:14px;
     `;
     widget.innerHTML = `
       <div style="font-weight:700;margin-bottom:8px;">\ud83c\uddf3\ud83c\uddf1 Importkosten naar Nederland</div>
-      <table style="width:100%;border-collapse:collapse;">
+      <table style="width:100%;border-collapse:collapse;line-height:1.7;">
         <tr><td>Vraagprijs</td><td style="text-align:right">${fmt(costs.price)}</td></tr>
         ${costs.importDuty > 0 ? `<tr><td>Invoerrechten (${costs.importDutyRate}%)</td><td style="text-align:right">${fmt(costs.importDuty)}</td></tr>` : ''}
-        <tr><td>BTW (21%)</td><td style="text-align:right">${fmt(costs.vat)}</td></tr>
-        ${costs.bpm > 0 ? `<tr><td>BPM</td><td style="text-align:right">${fmt(costs.bpm)}</td></tr>` : ''}
+        ${vatRow}
+        ${bpmRow}
         <tr style="font-weight:700;border-top:1px solid #ff9800;">
           <td>Totaal</td><td style="text-align:right">${fmt(costs.total)}</td>
         </tr>
-        ${warningRow}
       </table>
-      <p style="margin:6px 0 0;font-size:12px;color:#555;">
-        CO\u2082: <strong>${carData.co2}\u00a0g/km</strong>
-        <span style="color:${cl.color}">${cl.icon} ${cl.text}</span>
-        &nbsp;&middot;&nbsp; BPM-basis: ${carData.co2Source}
-      </p>
+      ${!costs.newCar ? '<p style="margin:6px 0 0;font-size:11px;color:#888;">BTW niet inbegrepen (gebruikte auto, marge-regeling).</p>' : ''}
     `;
 
     const anchor = document.querySelector('[data-testid="price-section"]');
     if (anchor) anchor.insertAdjacentElement('afterend', widget);
     else document.body.prepend(widget);
 
-    console.log('[CarImport] Widget ge\u00efnjecteerd.');
+    console.log('[CarImport] Widget ge\u00efnjecteerd. Nieuw:', costs.newCar, '| BTW:', fmt(costs.vat), '| BPM:', fmt(costs.bpm));
   }
 
   // -------------------------------------------------------------------------
@@ -325,21 +351,18 @@
     for (const card of cards) {
       let price = null;
       for (const span of card.querySelectorAll('span')) {
-        const text = span.textContent.trim();
-        if (/\u20ac/.test(text) || /[\d.]{4,}/.test(text)) {
-          const val = parseNumber(text);
-          if (val && val > 500) { price = val; break; }
-        }
+        const val = parseNumber(span.textContent.trim());
+        if (val && val > 500 && /[\u20ac\d.]/.test(span.textContent)) { price = val; break; }
       }
       if (!price) continue;
 
-      const allText  = card.textContent;
+      const allText   = card.textContent;
       const yearMatch = allText.match(/(19|20)\d{2}/);
       const year      = yearMatch ? parseInt(yearMatch[0], 10) : null;
       const fuelType  = normalizeFuelType(allText);
-      const estimation = estimateCO2FromSpecs({ fuelType, year });
+      const est       = estimateCO2FromSpecs({ fuelType, year });
 
-      results.push({ el: card, price, year, fuelType, co2: estimation.co2, co2Source: `schatting(${estimation.method})` });
+      results.push({ el: card, price, firstRegDate: year ? `01/${year}` : null, fuelType, co2: est.co2 });
     }
     return results.length ? results : null;
   }
@@ -348,16 +371,12 @@
     const fmt = (n) =>
       new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-    for (const { el, price, year, fuelType, co2 } of cards) {
+    for (const { el, price, firstRegDate, fuelType, co2 } of cards) {
       if (el.querySelector('.cic-badge')) continue;
-      const costs = calculateImportCosts({ price, year, fuelType, co2 }, settings);
+      const costs = calculateImportCosts({ price, firstRegDate, fuelType, co2 }, settings);
       const badge = document.createElement('div');
       badge.className = 'cic-badge';
-      badge.style.cssText = `
-        background:#ff9800;color:#fff;border-radius:4px;
-        padding:2px 8px;font-size:12px;font-weight:700;
-        display:inline-block;margin-top:4px;
-      `;
+      badge.style.cssText = `background:#ff9800;color:#fff;border-radius:4px;padding:2px 8px;font-size:12px;font-weight:700;display:inline-block;margin-top:4px;`;
       badge.textContent = `\ud83c\uddf3\ud83c\uddf1 ${fmt(costs.total)}`;
       for (const span of el.querySelectorAll('span')) {
         const val = parseNumber(span.textContent);
