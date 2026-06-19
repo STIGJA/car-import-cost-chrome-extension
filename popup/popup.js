@@ -1,12 +1,13 @@
 /**
  * popup.js
  *
- * Importeert de gedeelde BPM-logica uit utils/bpm.js zodat popup en
- * content scripts altijd dezelfde staffel en tabellen gebruiken.
+ * BPM-logica komt van window.CIC_BPM (utils/bpm.js via popup.html <script>).
+ * Zo gebruiken popup en content scripts altijd dezelfde staffel en tabellen.
  */
 
 import { getSettings, saveSettings } from '../utils/settings.js';
-import { bpmBruto, bpmNetto, estimateCO2 } from '../utils/bpm.js';
+
+const { bpmBruto, bpmNetto, estimateCO2 } = window.CIC_BPM;
 
 const fmt = (n) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
@@ -55,30 +56,23 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
 
   if (!price) return;
 
-  // CO2
   const co2Estimated = !co2Input;
   const co2 = co2Input ?? estimateCO2(fuelType, regYear);
 
-  // Leeftijd
   const ageMonths = (regMonth && regYear)
     ? (Date.now() - new Date(regYear, regMonth - 1, 1).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
     : null;
   const ageYears = ageMonths != null ? ageMonths / 12 : 3;
   const isNew    = ageMonths != null && ageMonths < 6;
 
-  // Kosten
   const vat   = isNew ? Math.round(price * 0.21) : 0;
   const gross = bpmBruto(co2, fuelType);
   const bpm   = bpmNetto(co2, fuelType, ageYears);
   const total = Math.round(price + vat + bpm);
 
-  // Render tabel
   const rows = [];
   rows.push(['Vraagprijs', fmt(price), null]);
-
-  if (isNew) {
-    rows.push(['BTW (21%)', fmt(vat), null]);
-  }
+  if (isNew) rows.push(['BTW (21%)', fmt(vat), null]);
 
   if (fuelType === 'electric') {
     rows.push(['BPM', '\u2014', null]);
