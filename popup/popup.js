@@ -1,8 +1,12 @@
 /**
  * popup.js
+ *
+ * Importeert de gedeelde BPM-logica uit utils/bpm.js zodat popup en
+ * content scripts altijd dezelfde staffel en tabellen gebruiken.
  */
 
 import { getSettings, saveSettings } from '../utils/settings.js';
+import { bpmBruto, bpmNetto, estimateCO2 } from '../utils/bpm.js';
 
 const fmt = (n) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
@@ -40,79 +44,6 @@ document.getElementById('regMonth').value = String(now.getMonth() + 1);
 document.getElementById('regYear').value  = String(now.getFullYear());
 
 // ---------------------------------------------------------------------------
-// BPM berekening — officiele Belastingdienst staffel 2026
-// Bron: https://www.belastingdienst.nl/wps/wcm/connect/nl/bpm/content/personenauto-bpm-tarief-berekenen
-//
-// Tabel 2026 (kolom1=CO2 vanaf, kolom2=CO2 tot, kolom3=vast bedrag, kolom4=tarief/gram):
-//   0   –  77 g/km:  €687  + €2/gram
-//  77   – 100 g/km:  €841  + €82/gram (boven 77)
-// 100   – 139 g/km:  €2727 + €181/gram (boven 100)
-// 139   – 155 g/km:  €9786 + €297/gram (boven 139)
-// >155  g/km:        €14538 + €594/gram (boven 155)
-//
-// Diesel toeslag 2026: €114,83 per gram boven 69 g/km
-// ---------------------------------------------------------------------------
-
-const BPM_TABLE = [
-  { from:   0, to:  77, base:   687, rate:   2 },
-  { from:  77, to: 100, base:   841, rate:  82 },
-  { from: 100, to: 139, base:  2727, rate: 181 },
-  { from: 139, to: 155, base:  9786, rate: 297 },
-  { from: 155, to: null, base: 14538, rate: 594 },
-];
-
-const DIESEL_SURCHARGE_RATE  = 114.83;
-const DIESEL_SURCHARGE_FROM  = 69;
-
-const DEPRECIATION = [0,0.09,0.17,0.25,0.33,0.41,0.50,0.57,0.63,0.68,0.73,0.77,0.81,0.84,0.87,0.90];
-
-const CO2_FALLBACK = {
-  petrol:  {2024:138,2023:142,2022:146,2021:150,2020:152,2019:155,2018:158,2017:162,2016:166,2015:170,2014:175,2013:180,2012:185,2011:190,2010:196,2009:202,2008:210,2007:218,2006:225,2005:232},
-  diesel:  {2024:128,2023:132,2022:136,2021:140,2020:143,2019:147,2018:151,2017:155,2016:159,2015:162,2014:167,2013:171,2012:175,2011:179,2010:184,2009:190,2008:198,2007:206,2006:214,2005:222},
-  hybrid:  {2024: 95,2023: 98,2022:102,2021:106,2020:108,2019:112,2018:116,2017:120,2016:125,2015:130,2014:135,2013:140,2012:145,2011:150,2010:156},
-  electric:{},
-};
-
-/**
- * Berekent bruto BPM o.b.v. de officiele Belastingdienst staffel.
- * Formule per schijf: (co2 - kolom1) * kolom4 + kolom3
- */
-function bpmBruto(co2, fuelType) {
-  if (co2 <= 0) return 0;
-
-  let bpm = 0;
-  for (const { from, to, base, rate } of BPM_TABLE) {
-    if (co2 > from) {
-      bpm = base + (co2 - from) * rate;
-      if (to === null || co2 <= to) break;
-    }
-  }
-
-  // Diesel toeslag
-  if (fuelType === 'diesel' && co2 > DIESEL_SURCHARGE_FROM) {
-    bpm += (co2 - DIESEL_SURCHARGE_FROM) * DIESEL_SURCHARGE_RATE;
-  }
-
-  return Math.round(bpm);
-}
-
-function getDepreciation(ageYears) {
-  return DEPRECIATION[Math.max(0, Math.min(Math.floor(ageYears), DEPRECIATION.length - 1))];
-}
-
-function getAgeMonths(month, year) {
-  if (!month || !year) return null;
-  const reg = new Date(year, month - 1, 1);
-  return (Date.now() - reg.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-}
-
-function estimateCO2(fuelType, year) {
-  const table = CO2_FALLBACK[fuelType] ?? CO2_FALLBACK.petrol;
-  const y = Math.max(2005, Math.min(2024, year ?? 2020));
-  return table[y] ?? 155;
-}
-
-// ---------------------------------------------------------------------------
 // Bereken
 // ---------------------------------------------------------------------------
 document.getElementById('calculateBtn').addEventListener('click', () => {
@@ -126,22 +57,23 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
 
   // CO2
   const co2Estimated = !co2Input;
-  const co2 = co2Input ?? (fuelType === 'electric' ? 0 : estimateCO2(fuelType, regYear));
+  const co2 = co2Input ?? estimateCO2(fuelType, regYear);
 
   // Leeftijd
-  const ageMonths = getAgeMonths(regMonth, regYear);
-  const ageYears  = ageMonths != null ? ageMonths / 12 : 3;
-  const isNew     = ageMonths != null && ageMonths < 6;
+  const ageMonths = (regMonth && regYear)
+    ? (Date.now() - new Date(regYear, regMonth - 1, 1).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+    : null;
+  const ageYears = ageMonths != null ? ageMonths / 12 : 3;
+  const isNew    = ageMonths != null && ageMonths < 6;
 
   // Kosten
-  const vat      = isNew ? Math.round(price * 0.21) : 0;
-  const bpmGross = fuelType === 'electric' ? 0 : bpmBruto(co2, fuelType);
-  const bpm      = Math.round(bpmGross * (1 - getDepreciation(ageYears)));
-  const total    = Math.round(price + vat + bpm);
+  const vat   = isNew ? Math.round(price * 0.21) : 0;
+  const gross = bpmBruto(co2, fuelType);
+  const bpm   = bpmNetto(co2, fuelType, ageYears);
+  const total = Math.round(price + vat + bpm);
 
   // Render tabel
   const rows = [];
-
   rows.push(['Vraagprijs', fmt(price), null]);
 
   if (isNew) {
@@ -151,7 +83,7 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
   if (fuelType === 'electric') {
     rows.push(['BPM', '\u2014', null]);
   } else {
-    const bpmTooltip = `o.b.v. ${co2}\u00a0g/km CO\u2082 (bruto \u20ac${fmt(bpmGross).replace('\u20ac\u00a0', '')})`;
+    const bpmTooltip = `o.b.v. ${co2}\u00a0g/km CO\u2082 (bruto ${fmt(gross)})`;
     const bpmWarning = co2Estimated ? `CO\u2082 geschat o.b.v. bouwjaar ${regYear ?? '?'}` : null;
     rows.push(['BPM', fmt(bpm), { valueTooltip: bpmTooltip, labelWarning: bpmWarning }]);
   }
