@@ -69,6 +69,8 @@
     </section>
   </main>
 
+  <!-- bpm.js moet als klassiek script laden vóór popup.js (module), zodat window.CIC_BPM beschikbaar is -->
+  <script src="../utils/bpm.js"></script>
   <script type="module" src="popup.js"></script>
 </body>
 </html>
