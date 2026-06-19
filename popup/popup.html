@@ -17,11 +17,29 @@
   <main>
     <!-- Tab: Handmatige berekening -->
     <section class="tab-panel" id="tab-calc">
+
       <label for="carPrice">Vraagprijs (€)</label>
       <input type="number" id="carPrice" placeholder="bijv. 15000" min="0" />
 
-      <label for="carYear">Bouwjaar</label>
-      <input type="number" id="carYear" placeholder="bijv. 2019" min="1990" max="2030" />
+      <label>Eerste registratie</label>
+      <div class="row-inline">
+        <select id="regMonth">
+          <option value="">Maand</option>
+          <option value="1">Jan</option>
+          <option value="2">Feb</option>
+          <option value="3">Mrt</option>
+          <option value="4">Apr</option>
+          <option value="5">Mei</option>
+          <option value="6">Jun</option>
+          <option value="7">Jul</option>
+          <option value="8">Aug</option>
+          <option value="9">Sep</option>
+          <option value="10">Okt</option>
+          <option value="11">Nov</option>
+          <option value="12">Dec</option>
+        </select>
+        <input type="number" id="regYear" placeholder="Jaar" min="1990" max="2030" style="width:80px" />
+      </div>
 
       <label for="fuelType">Brandstof</label>
       <select id="fuelType">
@@ -34,18 +52,11 @@
       <label for="co2">CO₂ <span class="unit">g/km</span> <span class="optional">(optioneel)</span></label>
       <input type="number" id="co2" placeholder="bijv. 138" min="0" max="400" />
 
-      <label for="firstReg">Eerste registratie <span class="optional">(voor BTW & afschrijving)</span></label>
-      <input type="month" id="firstReg" />
-
       <button id="calculateBtn">Bereken</button>
 
-      <!-- Resultaat -->
       <div class="results" id="results" hidden>
         <h2>Kostenopbouw</h2>
-        <div class="row"><span>Vraagprijs</span>   <span id="r-price">—</span></div>
-        <div class="row" id="row-vat"><span>BTW (21%)</span>    <span id="r-vat">—</span></div>
-        <div class="row"><span id="r-bpm-label">BPM</span>  <span id="r-bpm">—</span></div>
-        <div class="row total"><span>Totaal</span>   <span id="r-total">—</span></div>
+        <table id="results-table"></table>
         <p id="r-note" class="note"></p>
       </div>
     </section>

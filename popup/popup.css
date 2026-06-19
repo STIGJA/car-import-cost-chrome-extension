@@ -20,7 +20,6 @@ header h1 {
   margin-bottom: 8px;
 }
 
-/* Tabs */
 .tabs {
   display: flex;
   gap: 2px;
@@ -39,33 +38,34 @@ header h1 {
   transition: background 0.15s, color 0.15s;
 }
 
-.tab.active,
-.tab:hover {
+.tab.active, .tab:hover {
   background: #fff;
   color: #e65100;
 }
 
-/* Panels */
-main {
-  padding: 12px 14px;
-}
+main { padding: 12px 14px; }
 
 .tab-panel { display: block; }
 .tab-panel.hidden { display: none; }
 
-/* Form elements */
 label {
   display: block;
   font-weight: 600;
   margin: 10px 0 3px;
   color: #333;
 }
-
 label:first-child { margin-top: 0; }
 
-.unit   { font-weight: 400; color: #666; }
+.unit     { font-weight: 400; color: #666; }
 .optional { font-weight: 400; font-size: 11px; color: #888; }
-.hint   { font-size: 11px; color: #888; margin-top: 4px; line-height: 1.4; }
+.hint     { font-size: 11px; color: #888; margin-top: 4px; line-height: 1.4; }
+
+.row-inline {
+  display: flex;
+  gap: 6px;
+}
+.row-inline select { flex: 1; }
+.row-inline input  { flex: 0 0 auto; }
 
 input, select {
   width: 100%;
@@ -94,10 +94,8 @@ button#calculateBtn {
   font-weight: 700;
   cursor: pointer;
 }
-
 button#calculateBtn:hover { background: #bf360c; }
 
-/* Resultaten */
 .results {
   margin-top: 12px;
   border-top: 1px solid #eee;
@@ -112,25 +110,20 @@ button#calculateBtn:hover { background: #bf360c; }
   margin-bottom: 6px;
 }
 
-.row {
-  display: flex;
-  justify-content: space-between;
-  padding: 3px 0;
-  border-bottom: 1px solid #f0f0f0;
-  line-height: 1.5;
+#results-table {
+  width: 100%;
+  border-collapse: collapse;
+  line-height: 1.6;
 }
 
-.row span:last-child { font-weight: 600; }
+#results-table td { padding: 2px 0; }
+#results-table td:last-child { text-align: right; font-weight: 600; }
 
-.row.total {
+.row-total td {
   font-weight: 700;
-  border-bottom: none;
-  padding-top: 6px;
   border-top: 2px solid #e65100;
-  margin-top: 2px;
+  padding-top: 5px;
 }
-
-.row.dimmed { opacity: 0.4; }
 
 .note {
   font-size: 11px;
