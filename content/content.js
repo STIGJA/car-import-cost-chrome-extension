@@ -1,15 +1,14 @@
 /**
  * Content Script — AutoScout24 (gebundeld, geen ES module imports)
- *
- * Alles in één bestand omdat Chrome content scripts geen
- * ES module imports ondersteunen.
+ * AS24 gebruikt CSS Modules met willekeurige suffixen (bijv. PriceInfo_price__XU0aF)
+ * — daarom selecteren we alleen op data-testid of structurele selectors.
  */
 
 (async function () {
   'use strict';
 
   // -------------------------------------------------------------------------
-  // Settings (chrome.storage.sync)
+  // Settings
   // -------------------------------------------------------------------------
 
   function getSettings() {
@@ -57,7 +56,7 @@
   }
 
   // -------------------------------------------------------------------------
-  // Scraper helpers
+  // Helpers
   // -------------------------------------------------------------------------
 
   function parseNumber(raw) {
@@ -80,6 +79,10 @@
     return 'petrol';
   }
 
+  /**
+   * Zoek een waarde in de detail-lijst (dt/dd).
+   * AS24 gebruikt ook gewone dl>dt>dd structuur — die werkt wél.
+   */
   function scrapeDetailValue(labels) {
     for (const dt of document.querySelectorAll('dt')) {
       const text = dt.textContent.trim().toLowerCase();
@@ -90,17 +93,34 @@
     return null;
   }
 
+  /**
+   * Prijs ophalen uit de price-section.
+   * AS24 CSS Modules: class-namen zijn onbetrouwbaar, maar de structuur is:
+   *   [data-testid="price-section"] > div > div > div > span  (bevat "€ 16.990")
+   * We selecteren de eerste span onder price-section die een euro-teken bevat.
+   */
+  function scrapePrice() {
+    const section = document.querySelector('[data-testid="price-section"]');
+    if (!section) return null;
+
+    // Loop alle spans — pak de eerste met een €-bedrag
+    for (const span of section.querySelectorAll('span')) {
+      const text = span.textContent.trim();
+      if (/[€$]?\s*[\d.,]+/.test(text) && text.length < 20) {
+        const val = parseNumber(text);
+        if (val && val > 500) return val; // sanity check: geen kleine getallen
+      }
+    }
+    return null;
+  }
+
   // -------------------------------------------------------------------------
   // Scraper: advertentiepagina
   // -------------------------------------------------------------------------
 
   function scrapeListingPage() {
-    const priceEl =
-      document.querySelector('[data-testid="price-section"] .cldt-price') ??
-      document.querySelector('[data-testid="price"]') ??
-      document.querySelector('.cldt-price');
-
-    const price = parseNumber(priceEl?.textContent);
+    const price = scrapePrice();
+    console.log('[CarImport] Prijs gevonden:', price);
     if (!price) return null;
 
     const year = parseYear(
@@ -109,6 +129,8 @@
     const fuelRaw = scrapeDetailValue(['Kraftstoff', 'Fuel type', 'Brandstof', 'Carburant']) ?? '';
     const co2Raw  = scrapeDetailValue(['CO2-Emissionen', 'CO2 emissions', 'CO2-uitstoot', '\u00c9missions CO2']);
     const mileageRaw = scrapeDetailValue(['Kilometerstand', 'Mileage', 'Kilom\u00e9trage']);
+
+    console.log('[CarImport] Scraped:', { year, fuelRaw, co2Raw, mileageRaw });
 
     return {
       price,
@@ -131,35 +153,35 @@
 
     const widget = document.createElement('div');
     widget.id = 'cic-listing-widget';
+    widget.style.cssText = `
+      background: #fff3e0; border: 2px solid #ff9800; border-radius: 8px;
+      padding: 12px 16px; margin: 12px 0; font-family: sans-serif; font-size: 14px;
+    `;
     widget.innerHTML = `
-      <div class="cic-header">
-        <span class="cic-flag">🇳🇱</span>
-        <span class="cic-title">Importkosten naar NL</span>
-      </div>
-      <table class="cic-table">
-        <tr><td>Vraagprijs</td>           <td class="cic-val">${fmt(costs.price)}</td></tr>
-        ${costs.importDuty > 0 ? `<tr><td>Invoerrechten (${costs.importDutyRate}%)</td><td class="cic-val">${fmt(costs.importDuty)}</td></tr>` : ''}
-        <tr><td>BTW (21%)</td>            <td class="cic-val">${fmt(costs.vat)}</td></tr>
-        ${costs.bpm > 0   ? `<tr><td>BPM</td><td class="cic-val">${fmt(costs.bpm)}</td></tr>` : ''}
-        <tr class="cic-total-row">
+      <div style="font-weight:700; margin-bottom:8px;">🇳🇱 Importkosten naar Nederland</div>
+      <table style="width:100%; border-collapse:collapse;">
+        <tr><td>Vraagprijs</td>           <td style="text-align:right">${fmt(costs.price)}</td></tr>
+        ${costs.importDuty > 0 ? `<tr><td>Invoerrechten (${costs.importDutyRate}%)</td><td style="text-align:right">${fmt(costs.importDuty)}</td></tr>` : ''}
+        <tr><td>BTW (21%)</td>            <td style="text-align:right">${fmt(costs.vat)}</td></tr>
+        ${costs.bpm > 0 ? `<tr><td>BPM</td><td style="text-align:right">${fmt(costs.bpm)}</td></tr>` : ''}
+        <tr style="font-weight:700; border-top:1px solid #ff9800;">
           <td>Totaal</td>
-          <td class="cic-val">${fmt(costs.total)}</td>
+          <td style="text-align:right">${fmt(costs.total)}</td>
         </tr>
       </table>
-      <p class="cic-note">${carData.co2 ? `BPM berekend op ${carData.co2} g/km CO₂.` : 'BPM is een schatting (CO₂ niet gevonden).'}</p>
+      <p style="margin:6px 0 0; font-size:12px; color:#666;">
+        ${carData.co2 ? `BPM berekend op ${carData.co2} g/km CO\u2082.` : 'BPM is een schatting (CO\u2082 niet gevonden).'}
+      </p>
     `;
 
-    // Ankerplek: naast/onder de prijs
-    const anchor =
-      document.querySelector('[data-testid="price-section"]') ??
-      document.querySelector('.cldt-price')?.closest('section') ??
-      document.querySelector('aside');
-
+    const anchor = document.querySelector('[data-testid="price-section"]');
     if (anchor) {
       anchor.insertAdjacentElement('afterend', widget);
       console.log('[CarImport] Widget ge\u00efnjecteerd.');
     } else {
-      console.warn('[CarImport] Geen ankerplek gevonden.');
+      // Fallback: voeg toe aan body als eerste zichtbare element
+      document.body.prepend(widget);
+      console.warn('[CarImport] Fallback: widget bovenaan body gezet.');
     }
   }
 
@@ -168,23 +190,34 @@
   // -------------------------------------------------------------------------
 
   function scrapeSearchPage() {
-    const cards = document.querySelectorAll('article[data-item-name], [data-testid="listing-item"]');
-    if (!cards.length) return null;
+    // AS24 search: artikelen hebben data-testid="listing-item" of zijn <article>
+    const cards = document.querySelectorAll('[data-testid="listing-item"], article[class]');
+    if (!cards.length) {
+      console.log('[CarImport] Geen kaarten gevonden op zoekpagina.');
+      return null;
+    }
 
     const results = [];
     for (const card of cards) {
-      const priceEl = card.querySelector('[data-testid="price"], .cldt-price, [class*="price"]');
-      const price = parseNumber(priceEl?.textContent);
+      // Prijs: zoek span met euro-bedrag in de kaart
+      let price = null;
+      for (const span of card.querySelectorAll('span')) {
+        const text = span.textContent.trim();
+        if (/€/.test(text) || /[\d.]{4,}/.test(text)) {
+          const val = parseNumber(text);
+          if (val && val > 500) { price = val; break; }
+        }
+      }
       if (!price) continue;
 
-      const specsText = card.querySelector('[data-testid="listing-specs"], [class*="spec"]')?.textContent ?? '';
-      const yearMatch = specsText.match(/(19|20)\d{2}/);
+      const allText = card.textContent;
+      const yearMatch = allText.match(/(19|20)\d{2}/);
       const year = yearMatch ? parseInt(yearMatch[0], 10) : null;
+      const fuelType = normalizeFuelType(allText);
 
-      const fuelRaw = card.querySelector('[data-testid="fuel-type"], [class*="fuel"]')?.textContent ?? '';
-
-      results.push({ el: card, price, year, fuelType: normalizeFuelType(fuelRaw), co2: null });
+      results.push({ el: card, price, year, fuelType, co2: null });
     }
+    console.log('[CarImport] Zoekpagina kaarten:', results.length);
     return results.length ? results : null;
   }
 
@@ -202,13 +235,21 @@
       const costs = calculateImportCosts({ price, year, fuelType, co2 }, settings);
       const badge = document.createElement('div');
       badge.className = 'cic-badge';
-      badge.innerHTML = `
-        <span class="cic-badge-label">🇳🇱 Totaal NL</span>
-        <span class="cic-badge-value">${fmt(costs.total)}</span>
+      badge.style.cssText = `
+        background:#ff9800; color:#fff; border-radius:4px;
+        padding:2px 8px; font-size:12px; font-weight:700;
+        display:inline-block; margin-top:4px;
       `;
+      badge.textContent = `🇳🇱 ${fmt(costs.total)}`;
 
-      const priceEl = el.querySelector('[data-testid="price"], .cldt-price, [class*="price"]');
-      priceEl?.insertAdjacentElement('afterend', badge);
+      // Voeg badge in na het eerste prijselement in de kaart
+      for (const span of el.querySelectorAll('span')) {
+        const val = parseNumber(span.textContent);
+        if (val && val > 500) {
+          span.insertAdjacentElement('afterend', badge);
+          break;
+        }
+      }
     }
     console.log(`[CarImport] ${cards.length} badges ge\u00efnjecteerd.`);
   }
@@ -217,10 +258,10 @@
   // Wacht op async DOM (AS24 is een React SPA)
   // -------------------------------------------------------------------------
 
-  async function waitForData(scrapeFn, retries = 12, delayMs = 400) {
+  async function waitForData(scrapeFn, retries = 15, delayMs = 500) {
     for (let i = 0; i < retries; i++) {
       const result = scrapeFn();
-      if (result && (result.price || result.length)) return result;
+      if (result && (result.price || (Array.isArray(result) && result.length))) return result;
       await new Promise((r) => setTimeout(r, delayMs));
     }
     console.warn('[CarImport] Data niet gevonden na', retries, 'pogingen.');
