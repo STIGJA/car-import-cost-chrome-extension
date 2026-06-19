@@ -22,35 +22,32 @@
     if (document.getElementById('cic-listing-widget')) return;
 
     const rows = result.lineItems.map((item) => {
-      if (!item.included && !item.isTotal) {
-        // Weggelaten post: dim weergeven
-        return `
-          <tr style="opacity:0.45;">
-            <td>${item.label}</td>
-            <td style="text-align:right">\u2014</td>
-          </tr>
-          <tr style="opacity:0.45;">
-            <td colspan="2" style="font-size:11px;padding-bottom:4px">${item.reason ?? ''}</td>
-          </tr>`;
+      // Overgeslagen posten (bijv. BTW bij gebruikte auto) geheel weglaten
+      if (!item.included && !item.isTotal) return '';
+
+      // Label: waarschuwingsicoon als CO2 geschat is
+      let labelHtml = item.label;
+      if (item.note?.warning) {
+        labelHtml +=
+          ` <span title="${item.note.warning}" ` +
+          `style="cursor:help;" aria-label="Geschatte waarde">\u26a0\ufe0f</span>`;
       }
 
-      // Label: optioneel CO2-basis-tekst + waarschuwingsicoon
-      let labelHtml = item.label;
-      if (item.note) {
-        labelHtml += ` <span style="color:#888;font-weight:400;font-size:12px">${item.note.text}`;
-        if (item.note.warning) {
-          labelHtml +=
-            ` <span title="${item.note.warning}" ` +
-            `style="cursor:help;color:#e65100;" aria-label="Geschatte waarde">\u26a0\ufe0f</span>`;
-        }
-        labelHtml += '</span>';
+      // Waarde-cel: tooltip met CO2-basis
+      let valueHtml;
+      if (item.note?.valueTooltip) {
+        valueHtml =
+          `<span title="${item.note.valueTooltip}" style="cursor:help;text-decoration:underline dotted;">` +
+          `${fmt(item.value)}</span>`;
+      } else {
+        valueHtml = fmt(item.value);
       }
 
       const style = item.isTotal
-        ? 'font-weight:700;border-top:1px solid #ff9800;'
+        ? 'font-weight:700;border-top:1px solid #ff9800;padding-top:4px;'
         : '';
 
-      return `<tr style="${style}"><td>${labelHtml}</td><td style="text-align:right">${fmt(item.value)}</td></tr>`;
+      return `<tr style="${style}"><td>${labelHtml}</td><td style="text-align:right">${valueHtml}</td></tr>`;
     }).join('');
 
     const widget = document.createElement('div');
@@ -83,13 +80,12 @@
     const badge = document.createElement('div');
     badge.className = 'cic-badge';
     badge.style.cssText = [
-      'background:#ff9800', 'color:#fff',           'border-radius:4px',
-      'padding:2px 8px',    'font-size:12px',        'font-weight:700',
+      'background:#ff9800', 'color:#fff',         'border-radius:4px',
+      'padding:2px 8px',    'font-size:12px',      'font-weight:700',
       'display:inline-block', 'margin-top:4px',
     ].join(';');
     badge.textContent = `\ud83c\uddf3\ud83c\uddf1 ${fmt(total.value)}`;
 
-    // Plak badge na de eerste prijsspan in de kaart
     for (const span of cardEl.querySelectorAll('span')) {
       const val = parseInt(span.textContent.replace(/[^0-9]/g, ''), 10);
       if (val && val > 500) { span.insertAdjacentElement('afterend', badge); break; }

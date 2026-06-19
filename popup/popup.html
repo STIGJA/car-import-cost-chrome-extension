@@ -8,22 +8,15 @@
 <body>
   <header>
     <h1>🇳🇱 Import Kosten NL</h1>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" data-tab="calc" aria-selected="true">Berekening</button>
+      <button class="tab"        role="tab" data-tab="settings" aria-selected="false">Instellingen</button>
+    </nav>
   </header>
 
   <main>
-    <!-- Instellingen -->
-    <section class="section">
-      <h2>Instellingen</h2>
-      <label class="checkbox-label">
-        <input type="checkbox" id="originOutsideEU" />
-        Auto van buiten de EU (+ 6,5% invoerrechten)
-      </label>
-    </section>
-
-    <!-- Handmatige berekening -->
-    <section class="section">
-      <h2>Handmatige berekening</h2>
-
+    <!-- Tab: Handmatige berekening -->
+    <section class="tab-panel" id="tab-calc">
       <label for="carPrice">Vraagprijs (€)</label>
       <input type="number" id="carPrice" placeholder="bijv. 15000" min="0" />
 
@@ -38,21 +31,30 @@
         <option value="hybrid">Hybride</option>
       </select>
 
-      <label for="co2">CO₂ g/km <span class="optional">(optioneel)</span></label>
+      <label for="co2">CO₂ <span class="unit">g/km</span> <span class="optional">(optioneel)</span></label>
       <input type="number" id="co2" placeholder="bijv. 138" min="0" max="400" />
 
+      <label for="firstReg">Eerste registratie <span class="optional">(voor BTW & afschrijving)</span></label>
+      <input type="month" id="firstReg" />
+
       <button id="calculateBtn">Bereken</button>
+
+      <!-- Resultaat -->
+      <div class="results" id="results" hidden>
+        <h2>Kostenopbouw</h2>
+        <div class="row"><span>Vraagprijs</span>   <span id="r-price">—</span></div>
+        <div class="row" id="row-vat"><span>BTW (21%)</span>    <span id="r-vat">—</span></div>
+        <div class="row"><span id="r-bpm-label">BPM</span>  <span id="r-bpm">—</span></div>
+        <div class="row total"><span>Totaal</span>   <span id="r-total">—</span></div>
+        <p id="r-note" class="note"></p>
+      </div>
     </section>
 
-    <!-- Resultaat -->
-    <section class="section results" id="results" hidden>
-      <h2>Kostenopbouw</h2>
-      <div class="row"><span>Vraagprijs</span>       <span id="r-price">—</span></div>
-      <div class="row"><span>Invoerrechten</span>    <span id="r-duty">—</span></div>
-      <div class="row"><span>BTW (21%)</span>        <span id="r-vat">—</span></div>
-      <div class="row"><span>BPM</span>              <span id="r-bpm">—</span></div>
-      <div class="row total"><span>Totaal</span>     <span id="r-total">—</span></div>
-      <p id="r-note" class="note"></p>
+    <!-- Tab: Instellingen -->
+    <section class="tab-panel hidden" id="tab-settings">
+      <label for="postcode">Referentie postcode</label>
+      <input type="text" id="postcode" placeholder="bijv. 9203" maxlength="6" />
+      <p class="hint">Wordt later gebruikt voor transportkosten-schatting.</p>
     </section>
   </main>
 

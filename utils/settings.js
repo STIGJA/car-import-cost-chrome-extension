@@ -1,22 +1,20 @@
 /**
- * Instellingen via chrome.storage.sync
+ * settings.js — Lees/schrijf extensie-instellingen via chrome.storage.sync
  *
- * Huidig ondersteunde instellingen:
- *   originIsOutsideEU  {boolean}  true = invoerrechten 6,5% van toepassing
+ * Beschikbare instellingen:
+ *   postcode  {string}  Referentiepostcode (voor toekomstige transportkostenschatting)
  */
 
+'use strict';
+
 const DEFAULTS = {
-  originIsOutsideEU: true,
+  postcode: '',
 };
 
 export function getSettings() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(DEFAULTS, resolve);
-  });
+  return new Promise((resolve) => chrome.storage.sync.get(DEFAULTS, resolve));
 }
 
-export function saveSettings(settings) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.set(settings, resolve);
-  });
+export function saveSettings(partial) {
+  return new Promise((resolve) => chrome.storage.sync.set(partial, resolve));
 }
