@@ -44,7 +44,7 @@
     const widget = document.createElement('div');
     widget.id = 'cic-listing-widget';
     widget.innerHTML =
-      `<div class="cic-header"><span class="cic-title">Geschatte importkosten</span></div>` +
+      `<div class="cic-header"><span class="cic-title">Importkosten schatting</span></div>` +
       `<table class="cic-table">${rows}</table>`;
 
     if (anchorEl) anchorEl.insertAdjacentElement('afterend', widget);

@@ -17,7 +17,7 @@
 
   const settings = await new Promise((resolve) =>
     chrome.storage.sync.get(
-      { originIsOutsideEU: false, postcode: '', fixedCosts: 170, transportFixed: 300, transportPer100km: 55 },
+      { postcode: '', fixedCosts: 170, transportByCountry: null },
       resolve
     )
   );

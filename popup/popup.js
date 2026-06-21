@@ -2,7 +2,7 @@
  * popup.js
  */
 
-import { getSettings, saveSettings, resetSettings, SETTING_DEFAULTS } from '../utils/settings.js';
+import { getSettings, saveSettings, resetSettings, SETTING_DEFAULTS, TRANSPORT_DEFAULTS } from '../utils/settings.js';
 
 const { bpmBruto, bpmNetto, estimateCO2 } = window.CIC_BPM;
 
@@ -30,34 +30,49 @@ document.querySelectorAll('.tab').forEach((tab) => {
 // ---------------------------------------------------------------------------
 const settings = await getSettings();
 
-const postcodeEl        = document.getElementById('postcode');
-const fixedCostsEl      = document.getElementById('fixedCosts');
-const transportFixedEl  = document.getElementById('transportFixed');
-const transportPer100El = document.getElementById('transportPer100km');
+const fixedCostsEl  = document.getElementById('fixedCosts');
+fixedCostsEl.value  = settings.fixedCosts ?? SETTING_DEFAULTS.fixedCosts;
 
-postcodeEl.value        = settings.postcode          ?? '';
-fixedCostsEl.value      = settings.fixedCosts        ?? SETTING_DEFAULTS.fixedCosts;
-transportFixedEl.value  = settings.transportFixed    ?? SETTING_DEFAULTS.transportFixed;
-transportPer100El.value = settings.transportPer100km ?? SETTING_DEFAULTS.transportPer100km;
 
-function saveNum(el, key) {
-  el.addEventListener('change', () => {
-    const val = parseFloat(el.value);
-    if (!isNaN(val) && val >= 0) saveSettings({ [key]: val });
-  });
+
+const TRANSPORT_COUNTRIES = ['DE','BE','FR','IT','ES','AT','CH','PL','OTHER'];
+const transportMap = { ...TRANSPORT_DEFAULTS, ...(settings.transportByCountry ?? {}) };
+
+
+
+for (const cc of TRANSPORT_COUNTRIES) {
+  const el = document.getElementById(`t-${cc}`);
+  if (el) el.value = transportMap[cc] ?? TRANSPORT_DEFAULTS[cc];
+
+
 }
 
-postcodeEl.addEventListener('change', () => saveSettings({ postcode: postcodeEl.value.trim() }));
-saveNum(fixedCostsEl,      'fixedCosts');
-saveNum(transportFixedEl,  'transportFixed');
-saveNum(transportPer100El, 'transportPer100km');
+function saveTransport() {
+  const map = {};
+  for (const cc of TRANSPORT_COUNTRIES) {
+    const el  = document.getElementById(`t-${cc}`);
+    const val = parseFloat(el?.value);
+    map[cc]   = isNaN(val) ? TRANSPORT_DEFAULTS[cc] : val;
+  }
+  saveSettings({ transportByCountry: map });
+}
+
+fixedCostsEl.addEventListener('change', () => {
+  const val = parseFloat(fixedCostsEl.value);
+  if (!isNaN(val) && val >= 0) saveSettings({ fixedCosts: val });
+});
+
+for (const cc of TRANSPORT_COUNTRIES) {
+  document.getElementById(`t-${cc}`)?.addEventListener('change', saveTransport);
+}
 
 document.getElementById('resetSettingsBtn').addEventListener('click', async () => {
   await resetSettings();
-  postcodeEl.value        = SETTING_DEFAULTS.postcode;
-  fixedCostsEl.value      = SETTING_DEFAULTS.fixedCosts;
-  transportFixedEl.value  = SETTING_DEFAULTS.transportFixed;
-  transportPer100El.value = SETTING_DEFAULTS.transportPer100km;
+  fixedCostsEl.value = SETTING_DEFAULTS.fixedCosts;
+  for (const cc of TRANSPORT_COUNTRIES) {
+    const el = document.getElementById(`t-${cc}`);
+    if (el) el.value = TRANSPORT_DEFAULTS[cc];
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -71,11 +86,12 @@ document.getElementById('regYear').value  = String(now.getFullYear());
 // Calculate
 // ---------------------------------------------------------------------------
 document.getElementById('calculateBtn').addEventListener('click', () => {
-  const price    = parseFloat(document.getElementById('carPrice').value);
-  const regMonth = parseInt(document.getElementById('regMonth').value, 10) || null;
-  const regYear  = parseInt(document.getElementById('regYear').value,  10) || null;
-  const fuelType = document.getElementById('fuelType').value;
-  const co2Input = parseFloat(document.getElementById('co2').value) || null;
+  const price      = parseFloat(document.getElementById('carPrice').value);
+  const regMonth   = parseInt(document.getElementById('regMonth').value, 10) || null;
+  const regYear    = parseInt(document.getElementById('regYear').value,  10) || null;
+  const fuelType   = document.getElementById('fuelType').value;
+  const co2Input   = parseFloat(document.getElementById('co2').value) || null;
+  const country    = document.getElementById('calcCountry').value;
 
   if (!price) return;
 
@@ -88,15 +104,20 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
   const ageYears = ageMonths != null ? ageMonths / 12 : 3;
   const isNew    = ageMonths != null && ageMonths < 6;
 
-  const currentFixed      = parseFloat(fixedCostsEl.value)      || SETTING_DEFAULTS.fixedCosts;
-  const currentTransFixed = parseFloat(transportFixedEl.value)  || SETTING_DEFAULTS.transportFixed;
-  const currentTransPer   = parseFloat(transportPer100El.value) || SETTING_DEFAULTS.transportPer100km;
+  const currentFixed    = parseFloat(fixedCostsEl.value) || SETTING_DEFAULTS.fixedCosts;
+  const currentTransMap = {};
+  for (const cc of TRANSPORT_COUNTRIES) {
+    const el  = document.getElementById(`t-${cc}`);
+    const val = parseFloat(el?.value);
+    currentTransMap[cc] = isNaN(val) ? TRANSPORT_DEFAULTS[cc] : val;
+  }
+  const transport = currentTransMap[country] ?? currentTransMap['OTHER'] ?? 600;
 
   const vat   = isNew ? Math.round(price * 0.21) : 0;
   const gross = bpmBruto(co2, fuelType);
   const bpm   = bpmNetto(co2, fuelType, ageYears);
-  // No distance available in manual calc — show fixed transport only
-  const transport = currentTransFixed;
+
+
   const total = Math.round(price + vat + bpm + transport + currentFixed);
 
   const rows = [];
@@ -111,7 +132,7 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
     rows.push(['BPM', fmt(bpm), { valueTooltip: bpmTooltip, labelWarning: bpmWarning }]);
   }
 
-  rows.push(['Transport (vaste kosten)', fmt(transport), null]);
+  rows.push(['Transport', fmt(transport), null]);
   rows.push(['Vaste kosten (RDW e.d.)', fmt(currentFixed), null]);
 
   const table = document.getElementById('results-table');

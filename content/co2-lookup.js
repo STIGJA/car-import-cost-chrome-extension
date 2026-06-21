@@ -99,19 +99,19 @@ function estimateCO2FromSpecs({ fuelType, euroNorm, powerKw, year }) {
 
   if (normEuro && EURO_POWER_TABLE[fuel][normEuro] && powerKw) {
     const co2 = EURO_POWER_TABLE[fuel][normEuro][powerBracket(powerKw)];
-    return { co2, method: `${normEuro} + ${powerKw}\u00a0kW`, confidence: 'medium' };
+    return { co2, method: 'euronorm en vermogen', confidence: 'medium' };
   }
   if (normEuro && EURO_POWER_TABLE[fuel][normEuro]) {
     const co2 = EURO_POWER_TABLE[fuel][normEuro][2]; // 100-129kW als midden
-    return { co2, method: normEuro, confidence: 'low' };
+    return { co2, method: 'euronorm', confidence: 'low' };
   }
   if (year && YEAR_FALLBACK[fuel]) {
     const y = Math.max(2005, Math.min(2024, year));
     const co2 = YEAR_FALLBACK[fuel][y];
-    if (co2) return { co2, method: `bouwjaar ${y}`, confidence: 'low' };
+    if (co2) return { co2, method: 'bouwjaar', confidence: 'low' };
   }
   const fallback = { petrol: 155, diesel: 145, hybrid: 120, electric: 0 };
-  return { co2: fallback[fuel] ?? 155, method: 'standaard', confidence: 'very-low' };
+  return { co2: fallback[fuel] ?? 155, method: 'standaard voor brandstoftype', confidence: 'very-low' };
 }
 
 /**

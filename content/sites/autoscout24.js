@@ -21,7 +21,7 @@
 (function (root) {
 
   // ---------------------------------------------------------------------------
-  // DOM helpers
+  // Helpers
   // ---------------------------------------------------------------------------
 
   /**
@@ -71,19 +71,26 @@
     }
     return null;
   }
+function scrapePrice() {
+  const section = document.querySelector('[data-testid="price-section"]');
+  if (!section) return null;
 
-  function scrapePrice() {
-    const section = document.querySelector('[data-testid="price-section"]');
-    if (!section) return null;
-    for (const span of section.querySelectorAll('span')) {
-      const text = span.textContent.trim();
-      if (text.length < 25) {
-        const val = parsePrice(text);
-        if (val && val > 500) return val;
-      }
-    }
-    return null;
+  for (const span of section.querySelectorAll('span')) {
+    const directText = Array.from(span.childNodes)
+      .filter(n => n.nodeType === Node.TEXT_NODE)
+      .map(n => n.textContent.trim())
+      .join('');
+
+    if (!directText) continue;
+
+    const isPriceOnly = /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(directText);
+    if (!isPriceOnly) continue;
+
+    const val = parsePrice(directText);
+    if (val && val > 500 && val < 10_000_000) return val;
   }
+  return null;
+}
 
   function parsePowerKw(raw) {
     if (!raw) return null;

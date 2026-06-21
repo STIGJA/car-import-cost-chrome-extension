@@ -60,8 +60,14 @@
   margin-top: 4px;
 }
 
-.cic-tip  { cursor: help; text-decoration: underline dotted; }
-.cic-warn { cursor: help; font-size: 12px; }
+.cic-tip {
+  cursor: help;
+  text-decoration: underline dotted;
+}
+.cic-warn {
+  cursor: help;
+  font-size: 12px;
+}
 
 /* ============================================================
    Compact search widget — shown inside each search result card.
