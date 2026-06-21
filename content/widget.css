@@ -5,7 +5,7 @@
    Design tokens
    --cic-accent       : primary brand colour
    --cic-accent-hover : darker shade for borders / emphasis
-   --cic-accent-bg    : very light tint used as badge background
+   --cic-accent-bg    : very light tint used as badge / compact widget background
    =========================================================== */
 
 :root {
@@ -21,7 +21,9 @@
   --cic-radius-sm:   5px;
 }
 
-/* --- Listing widget (car detail page) --- */
+/* ============================================================
+   Listing widget — full cost breakdown on the car detail page
+   ============================================================ */
 
 #cic-listing-widget {
   font-family: inherit;
@@ -42,8 +44,6 @@
   gap: 6px;
   margin-bottom: 10px;
 }
-
-.cic-flag  { font-size: 16px; line-height: 1; }
 
 .cic-title {
   font-weight: 700;
@@ -98,25 +98,53 @@
   margin-left: 2px;
 }
 
-/* --- Search-results badge --- */
+/* ============================================================
+   Compact search widget — shown on each search result card.
+   Same visual language as the listing widget but more compact.
+   ============================================================ */
 
-.cic-badge {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.cic-compact {
   background: var(--cic-accent-bg);
   border: 1px solid #c5ccd9;
   border-radius: var(--cic-radius-sm);
-  padding: 4px 8px;
+  padding: 6px 10px;
   margin-top: 6px;
-  font-size: 12px;
   font-family: inherit;
+  font-size: 12px;
+  color: var(--cic-text);
 }
 
-.cic-badge-label { color: var(--cic-text-muted); font-weight: 500; }
+.cic-compact-title {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--cic-accent);
+  margin-bottom: 4px;
+}
 
-.cic-badge-value {
+.cic-compact-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cic-compact-table td {
+  padding: 2px 0;
+  font-size: 11px;
+  color: var(--cic-text-muted);
+  vertical-align: middle;
+}
+
+.cic-compact-table td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--cic-text);
+}
+
+/* Total row within compact widget */
+.cic-compact-total td {
   font-weight: 700;
   color: var(--cic-accent);
-  font-variant-numeric: tabular-nums;
+  border-top: 1px solid #c5ccd9;
+  padding-top: 4px;
+  margin-top: 2px;
+  font-size: 12px;
 }

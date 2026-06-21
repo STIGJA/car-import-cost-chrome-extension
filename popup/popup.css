@@ -110,7 +110,7 @@ select:focus {
   background: var(--cic-surface);
 }
 
-/* --- Calculate button --- */
+/* --- Primary button (calculate) --- */
 
 button#calculateBtn {
   margin-top: 12px;
@@ -127,6 +127,27 @@ button#calculateBtn {
 }
 
 button#calculateBtn:hover { background: var(--cic-accent-hover); }
+
+/* --- Secondary button (reset) --- */
+
+.btn-secondary {
+  margin-top: 14px;
+  width: 100%;
+  padding: 6px;
+  background: transparent;
+  color: var(--cic-accent);
+  border: 1px solid var(--cic-accent);
+  border-radius: var(--cic-radius);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-secondary:hover {
+  background: var(--cic-accent);
+  color: #fff;
+}
 
 /* --- Results panel --- */
 
@@ -150,8 +171,8 @@ button#calculateBtn:hover { background: var(--cic-accent-hover); }
   line-height: 1.6;
 }
 
-#results-table td              { padding: 2px 0; }
-#results-table td:last-child   { text-align: right; font-weight: 600; }
+#results-table td            { padding: 2px 0; }
+#results-table td:last-child { text-align: right; font-weight: 600; }
 
 /* Total row — accent top border for visual separation */
 .row-total td {

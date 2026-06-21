@@ -6,7 +6,7 @@
  *
  * Exports (via window.CIC_Renderer):
  *   injectListingWidget(importResult, anchorEl)  — full widget on car detail page
- *   injectSearchBadge(importResult, cardEl)       — compact badge on search result cards
+ *   injectSearchWidget(importResult, cardEl)      — compact cost breakdown on search result cards
  */
 
 'use strict';
@@ -21,20 +21,20 @@
     new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
   /**
-   * Builds a single <tr> for the cost breakdown table.
-   * Returns an empty string for line items that are excluded and not the total.
+   * Builds a <tr> for the full listing widget cost table.
+   * Returns empty string for excluded line items that are not the total.
    */
-  function buildTableRow(item) {
+  function buildListingRow(item) {
     if (!item.included && !item.isTotal) return '';
 
     // Label cell — add warning icon when CO2 value was estimated
     let labelHtml = item.label;
     if (item.note?.warning) {
       labelHtml +=
-        ` <span class="cic-warning-icon" title="${item.note.warning}" aria-label="Geschatte waarde">\u26a0\ufe0f</span>`;
+        ` <span class="cic-warning-icon" title="${item.note.warning}" aria-label="Geschatte waarde">&#x26A0;&#xFE0F;</span>`;
     }
 
-    // Value cell — add dotted underline when a tooltip with calculation detail is available
+    // Value cell — dotted underline when a calculation tooltip is available
     let valueHtml;
     if (item.note?.valueTooltip) {
       valueHtml =
@@ -48,6 +48,21 @@
     return `<tr${rowClass}><td>${labelHtml}</td><td class="cic-val">${valueHtml}</td></tr>`;
   }
 
+  /**
+   * Builds a <tr> for the compact search widget table.
+   * Skips rows that are not included and not the total.
+   */
+  function buildCompactRow(item) {
+    if (!item.included && !item.isTotal) return '';
+
+    const rowClass = item.isTotal ? ' class="cic-compact-total"' : '';
+    const valueHtml = item.note?.valueTooltip
+      ? `<span class="cic-tooltip-trigger" title="${item.note.valueTooltip}">${fmt(item.value)}</span>`
+      : fmt(item.value);
+
+    return `<tr${rowClass}><td>${item.label}</td><td>${valueHtml}</td></tr>`;
+  }
+
   // ---------------------------------------------------------------------------
   // Listing widget — full cost breakdown on the car detail page
   // ---------------------------------------------------------------------------
@@ -55,14 +70,13 @@
   function injectListingWidget(result, anchorEl) {
     if (document.getElementById('cic-listing-widget')) return;
 
-    const rows = result.lineItems.map(buildTableRow).join('');
+    const rows = result.lineItems.map(buildListingRow).join('');
 
     const widget = document.createElement('div');
     widget.id = 'cic-listing-widget';
     widget.innerHTML = `
       <div class="cic-header">
-        <span class="cic-flag">\ud83c\uddf3\ud83c\uddf1</span>
-        <span class="cic-title">Importkosten naar Nederland</span>
+        <span class="cic-title">Geschatte importkosten</span>
       </div>
       <table class="cic-table">${rows}</table>
     `;
@@ -72,31 +86,33 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Search badge — compact total shown on each search result card
+  // Compact search widget — cost breakdown on each search result card
   // ---------------------------------------------------------------------------
 
-  function injectSearchBadge(result, cardEl) {
-    if (cardEl.querySelector('.cic-badge')) return;
+  function injectSearchWidget(result, cardEl) {
+    if (cardEl.querySelector('.cic-compact')) return;
 
-    const total = result.lineItems.find((item) => item.isTotal);
-    if (!total) return;
+    const rows = result.lineItems.map(buildCompactRow).join('');
 
-    const badge = document.createElement('div');
-    badge.className = 'cic-badge';
-    badge.innerHTML =
-      `<span class="cic-badge-label">\ud83c\uddf3\ud83c\uddf1 Totaal</span>` +
-      `<span class="cic-badge-value">${fmt(total.value)}</span>`;
+    const widget = document.createElement('div');
+    widget.className = 'cic-compact';
+    widget.innerHTML =
+      `<div class="cic-compact-title">Geschatte importkosten</div>` +
+      `<table class="cic-compact-table">${rows}</table>`;
 
     // Insert after the first element that looks like a price (numeric value > 500)
     for (const span of cardEl.querySelectorAll('span')) {
       const val = parseInt(span.textContent.replace(/[^0-9]/g, ''), 10);
       if (val && val > 500) {
-        span.insertAdjacentElement('afterend', badge);
-        break;
+        span.insertAdjacentElement('afterend', widget);
+        return;
       }
     }
+
+    // Fallback: append at the end of the card
+    cardEl.appendChild(widget);
   }
 
-  root.CIC_Renderer = { injectListingWidget, injectSearchBadge };
+  root.CIC_Renderer = { injectListingWidget, injectSearchWidget };
 
 })(window);

@@ -1,123 +1,138 @@
 /**
- * BPM + BTW + invoerrechten berekening voor import naar Nederland.
+ * calculator.js — BPM + BTW + import duty + transport + fixed costs.
  *
- * BPM wordt berekend op basis van CO₂-uitstoot (g/km) en brandstoftype,
- * conform de Nederlandse BPM-tabel 2024/2025.
+ * BPM is calculated from CO2 emissions (g/km) and fuel type,
+ * based on the Dutch BPM table 2024/2025.
  *
- * Bronnen:
+ * Transport cost uses the Haversine crow-distance method, mirroring
+ * CarImportArbitrageTool/Services/ImportCostCalculator.cs.
+ *
+ * Sources:
  *   https://www.belastingdienst.nl/wps/wcm/connect/bldcontentnl/belastingdienst/zakelijk/auto_en_vervoer/belastingen_op_auto_en_motor/bpm/
  *   https://www.autoweek.nl/autonieuws/algemeen/a47264/bpm-tabel-2024/
  *
- * @param {{ price, year, fuelType, co2 }} carData
- * @param {{ originIsOutsideEU }} settings
+ * @param {{ price, year, fuelType, co2, carPostcode, carCountry }} carData
+ * @param {{ originIsOutsideEU, postcode, fixedCosts }} settings
+ * @returns {{ lineItems: LineItem[], total: number }}
  */
-export function calculateImportCosts(carData, settings = {}) {
-  const { price, year, fuelType, co2 } = carData;
-  const originIsOutsideEU = settings.originIsOutsideEU ?? true;
 
-  // --- Invoerrechten ---
-  // 6.5% voor personenwagens van buiten de EU (GN-code 8703)
-  // 0% voor EU-oorsprong
+import { estimateTransportCost, TRANSPORT_DEFAULTS } from './transport.js';
+import { SETTING_DEFAULTS } from './settings.js';
+
+// ---------------------------------------------------------------------------
+// Main export
+// ---------------------------------------------------------------------------
+
+export async function calculateImportCosts(carData, settings = {}) {
+  const { price, year, fuelType, co2, carPostcode, carCountry } = carData;
+  const originIsOutsideEU = settings.originIsOutsideEU ?? true;
+  const referencePostcode = settings.postcode || TRANSPORT_DEFAULTS.referencePostcode;
+  const fixedCosts        = settings.fixedCosts ?? SETTING_DEFAULTS.fixedCosts;
+
+  const lineItems = [];
+
+  // --- Vraagprijs ---
+  lineItems.push({ label: 'Vraagprijs', value: price, included: true });
+
+  // --- Invoerrechten (6.5% for non-EU origin, 0% for EU) ---
   const importDutyRate = originIsOutsideEU ? 6.5 : 0;
   const importDuty = Math.round(price * (importDutyRate / 100));
+  lineItems.push({
+    label:    `Invoerrechten (${importDutyRate}%)`,
+    value:    importDuty,
+    included: originIsOutsideEU,
+  });
 
-  // --- BTW ---
-  // 21% over aankoopprijs + invoerrechten
+  // --- BTW (21% over price + import duty) ---
   const vatBase = price + importDuty;
   const vat = Math.round(vatBase * 0.21);
+  lineItems.push({ label: 'BTW (21%)', value: vat, included: true });
 
   // --- BPM ---
-  const bpm = calcBPM({ price, year, fuelType, co2 });
-
-  const total = price + importDuty + vat + bpm;
-
-  return {
-    price,
-    importDuty,
-    importDutyRate,
-    vat,
-    bpm,
-    total: Math.round(total),
+  const { bpm, co2Used, co2Estimated } = calcBPM({ price, year, fuelType, co2 });
+  const bpmNote = fuelType === 'electric' ? null : {
+    valueTooltip: `o.b.v. ${co2Used}\u00a0g/km CO\u2082`,
+    warning:      co2Estimated ? `CO\u2082 geschat (${co2Used}\u00a0g/km)` : null,
   };
+  lineItems.push({
+    label:    'BPM',
+    value:    bpm,
+    included: fuelType !== 'electric',
+    note:     bpmNote,
+  });
+
+  // --- Transport ---
+  let transport = null;
+  if (carPostcode && carCountry) {
+    transport = await estimateTransportCost(carPostcode, carCountry, referencePostcode);
+  }
+  lineItems.push({
+    label:    'Transport (schatting)',
+    value:    transport ?? TRANSPORT_DEFAULTS.fixedCost,
+    included: true,
+    note:     transport == null
+      ? { warning: 'Postcode onbekend, vaste schatting gebruikt' }
+      : null,
+  });
+
+  // --- Vaste kosten (RDW, keuring, etc.) ---
+  lineItems.push({
+    label:    'Vaste kosten (RDW e.d.)',
+    value:    fixedCosts,
+    included: true,
+  });
+
+  // --- Totaal ---
+  const includedSum = lineItems
+    .filter((i) => i.included)
+    .reduce((sum, i) => sum + i.value, 0);
+
+  lineItems.push({ label: 'Totaal', value: Math.round(includedSum), included: true, isTotal: true });
+
+  return { lineItems, total: Math.round(includedSum) };
 }
 
 // ---------------------------------------------------------------------------
-// BPM berekening
+// BPM calculation
 // ---------------------------------------------------------------------------
 
-/**
- * Berekent BPM op basis van CO₂ g/km en brandstoftype.
- *
- * Methode:
- *   1. Bepaal de BPM-grondslag via de CO₂-staffel
- *   2. Pas de leeftijdsafschrijving toe (vaste tabel RDW)
- *
- * Als CO₂ niet bekend is, wordt een conservatieve schatting gebruikt.
- */
 function calcBPM({ price, year, fuelType, co2 }) {
-  if (fuelType === 'electric') return 0; // EV volledig vrijgesteld
+  if (fuelType === 'electric') return { bpm: 0, co2Used: 0, co2Estimated: false };
 
-  const currentYear = new Date().getFullYear();
-  const age = Math.max(0, currentYear - (year ?? currentYear));
-
-  // CO₂-staffel BPM 2025 (benaderd lineair model)
-  // Bron: Autoweek BPM-tabel + Belastingdienst
-  const co2Value = co2 ?? estimateCO2(fuelType); // fallback als CO₂ onbekend
-  const bpmGross = co2ToBPM(co2Value, fuelType);
-
-  // Leeftijdsafschrijving (vaste tabel, benaderd)
-  // 0 jaar = 0%, 1 jaar ≈ 9%, oplopend tot max 90%
+  const currentYear  = new Date().getFullYear();
+  const age          = Math.max(0, currentYear - (year ?? currentYear));
+  const co2Estimated = co2 == null;
+  const co2Used      = co2 ?? estimateCO2(fuelType);
+  const gross        = co2ToBPM(co2Used, fuelType);
   const depreciation = getDepreciation(age);
 
-  return Math.round(bpmGross * (1 - depreciation));
+  return { bpm: Math.round(gross * (1 - depreciation)), co2Used, co2Estimated };
 }
 
 /**
- * CO₂ → bruto BPM bedrag (2025 staffel)
- * Benzine en hybride: zelfde tabel
- * Diesel: toeslag van ~€90 per 100km/l (vereenvoudigd: +15%)
+ * CO2 (g/km) → gross BPM amount using the simplified 2025 bracket table.
+ * Diesel gets a 15% surcharge.
  */
 function co2ToBPM(co2, fuelType) {
-  // Vereenvoudigde lineaire staffel:
-  //   0–82 g/km:   €0
-  //   83–100 g/km: €4 per g/km boven 82
-  //  101–150 g/km: €7 per g/km boven 100
-  //  151+ g/km:   €18 per g/km boven 150
   let bpm = 0;
-
-  if (co2 > 150) {
-    bpm += (co2 - 150) * 18;
-    bpm += (150 - 100) * 7;
-    bpm += (100 - 82) * 4;
-  } else if (co2 > 100) {
-    bpm += (co2 - 100) * 7;
-    bpm += (100 - 82) * 4;
-  } else if (co2 > 82) {
-    bpm += (co2 - 82) * 4;
-  }
-
-  // Dieseltoeslag
+  if      (co2 > 150) { bpm += (co2 - 150) * 18 + 50 * 7 + 18 * 4; }
+  else if (co2 > 100) { bpm += (co2 - 100) * 7  + 18 * 4; }
+  else if (co2 > 82)  { bpm += (co2 - 82)  * 4; }
   if (fuelType === 'diesel') bpm = Math.round(bpm * 1.15);
-
   return bpm;
 }
 
-/**
- * Schatting van CO₂ als het niet beschikbaar is.
- * Conservatief (hoog) om de gebruiker niet te verrassen.
- */
+/** Conservative CO2 fallback when the value is not available. */
 function estimateCO2(fuelType) {
   const estimates = { petrol: 145, diesel: 155, hybrid: 110, electric: 0 };
   return estimates[fuelType] ?? 145;
 }
 
 /**
- * Leeftijdsafschrijving BPM (benaderd op basis van RDW-tabel).
- * Werkelijke tabel: https://www.rdw.nl/zakelijk/voertuigen/registreren/bpm
+ * BPM age depreciation table (approximation of the RDW table).
+ * Source: https://www.rdw.nl/zakelijk/voertuigen/registreren/bpm
  */
 function getDepreciation(ageYears) {
-  // Eerste 5 jaar snel afschrijven, daarna afvlakken tot max 90%
   const table = [0, 0.09, 0.17, 0.25, 0.33, 0.41, 0.50, 0.57, 0.63, 0.68, 0.73, 0.77, 0.81, 0.84, 0.87, 0.90];
-  const idx = Math.min(ageYears, table.length - 1);
-  return table[idx];
+  return table[Math.min(ageYears, table.length - 1)];
 }

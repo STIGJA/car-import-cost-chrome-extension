@@ -7,7 +7,7 @@
 </head>
 <body>
   <header>
-    <h1>&#x1F1F3;&#x1F1F1; Importkosten NL</h1>
+    <h1>Importkosten NL</h1>
     <nav class="tabs" role="tablist">
       <button class="tab active" role="tab" data-tab="calc"     aria-selected="true" >Berekening</button>
       <button class="tab"        role="tab" data-tab="settings" aria-selected="false">Instellingen</button>
@@ -63,9 +63,17 @@
 
     <!-- Tab: Settings -->
     <section class="tab-panel hidden" id="tab-settings">
+
       <label for="postcode">Referentie postcode</label>
       <input type="text" id="postcode" placeholder="bijv. 9203" maxlength="6" />
-      <p class="hint">Wordt later gebruikt voor transportkosten-schatting.</p>
+      <p class="hint">Gebruikt voor schatting van transportkosten.</p>
+
+      <label for="fixedCosts">Vaste kosten (RDW, keuring, e.d.) (&#x20AC;)</label>
+      <input type="number" id="fixedCosts" placeholder="bijv. 170" min="0" />
+      <p class="hint">Standaard: &#x20AC;170. Dekt RDW-inschrijving en overige vaste importkosten.</p>
+
+      <button id="resetSettingsBtn" class="btn-secondary">Herstel standaard</button>
+
     </section>
   </main>
 

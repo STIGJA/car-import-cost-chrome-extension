@@ -1,11 +1,11 @@
 /**
  * popup.js
  *
- * BPM-logica komt van window.CIC_BPM (utils/bpm.js via popup.html <script>).
- * Zo gebruiken popup en content scripts altijd dezelfde staffel en tabellen.
+ * BPM logic comes from window.CIC_BPM (utils/bpm.js loaded via popup.html <script>)
+ * so the popup and content scripts always share the same BPM brackets and tables.
  */
 
-import { getSettings, saveSettings } from '../utils/settings.js';
+import { getSettings, saveSettings, resetSettings, SETTING_DEFAULTS } from '../utils/settings.js';
 
 const { bpmBruto, bpmNetto, estimateCO2 } = window.CIC_BPM;
 
@@ -13,8 +13,9 @@ const fmt = (n) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
 // ---------------------------------------------------------------------------
-// Tabs
+// Tab navigation
 // ---------------------------------------------------------------------------
+
 document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((t) => {
@@ -29,24 +30,45 @@ document.querySelectorAll('.tab').forEach((tab) => {
 });
 
 // ---------------------------------------------------------------------------
-// Instellingen
+// Settings — load and persist on change
 // ---------------------------------------------------------------------------
+
 const settings = await getSettings();
 
-const postcodeEl = document.getElementById('postcode');
-postcodeEl.value = settings.postcode ?? '';
-postcodeEl.addEventListener('change', () => saveSettings({ postcode: postcodeEl.value.trim() }));
+const postcodeEl   = document.getElementById('postcode');
+const fixedCostsEl = document.getElementById('fixedCosts');
+
+postcodeEl.value   = settings.postcode   ?? '';
+fixedCostsEl.value = settings.fixedCosts ?? SETTING_DEFAULTS.fixedCosts;
+
+postcodeEl.addEventListener('change', () =>
+  saveSettings({ postcode: postcodeEl.value.trim() })
+);
+
+fixedCostsEl.addEventListener('change', () => {
+  const val = parseFloat(fixedCostsEl.value);
+  if (!isNaN(val) && val >= 0) saveSettings({ fixedCosts: val });
+});
+
+// Reset all settings to their defaults
+document.getElementById('resetSettingsBtn').addEventListener('click', async () => {
+  await resetSettings();
+  postcodeEl.value   = SETTING_DEFAULTS.postcode;
+  fixedCostsEl.value = SETTING_DEFAULTS.fixedCosts;
+});
 
 // ---------------------------------------------------------------------------
-// Vul huidige maand en jaar in als standaard voor eerste registratie
+// Pre-fill current month + year as default first-registration date
 // ---------------------------------------------------------------------------
+
 const now = new Date();
 document.getElementById('regMonth').value = String(now.getMonth() + 1);
 document.getElementById('regYear').value  = String(now.getFullYear());
 
 // ---------------------------------------------------------------------------
-// Bereken
+// Calculate button
 // ---------------------------------------------------------------------------
+
 document.getElementById('calculateBtn').addEventListener('click', () => {
   const price    = parseFloat(document.getElementById('carPrice').value);
   const regMonth = parseInt(document.getElementById('regMonth').value, 10) || null;
@@ -65,10 +87,12 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
   const ageYears = ageMonths != null ? ageMonths / 12 : 3;
   const isNew    = ageMonths != null && ageMonths < 6;
 
+  const currentFixedCosts = parseFloat(fixedCostsEl.value) || SETTING_DEFAULTS.fixedCosts;
+
   const vat   = isNew ? Math.round(price * 0.21) : 0;
   const gross = bpmBruto(co2, fuelType);
   const bpm   = bpmNetto(co2, fuelType, ageYears);
-  const total = Math.round(price + vat + bpm);
+  const total = Math.round(price + vat + bpm + currentFixedCosts);
 
   const rows = [];
   rows.push(['Vraagprijs', fmt(price), null]);
@@ -82,13 +106,15 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
     rows.push(['BPM', fmt(bpm), { valueTooltip: bpmTooltip, labelWarning: bpmWarning }]);
   }
 
+  rows.push(['Vaste kosten (RDW e.d.)', fmt(currentFixedCosts), null]);
+
   const table = document.getElementById('results-table');
   table.innerHTML = rows.map(([label, value, meta]) => {
     const labelHtml = meta?.labelWarning
-      ? `${label} <span title="${meta.labelWarning}" style="cursor:help">\u26a0\ufe0f</span>`
+      ? `${label} <span title="${meta.labelWarning}" class="cic-warning-icon">&#x26A0;&#xFE0F;</span>`
       : label;
     const valueHtml = meta?.valueTooltip
-      ? `<span title="${meta.valueTooltip}" style="cursor:help;text-decoration:underline dotted">${value}</span>`
+      ? `<span title="${meta.valueTooltip}" class="cic-tooltip-trigger">${value}</span>`
       : value;
     return `<tr><td>${labelHtml}</td><td>${valueHtml}</td></tr>`;
   }).join('') +
