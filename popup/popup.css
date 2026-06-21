@@ -1,189 +1,174 @@
-/* ===========================================================
-   Car Import Cost — popup styles
-
-   Design tokens mirror widget.css so both surfaces
-   stay visually consistent.
-   =========================================================== */
-
-:root {
-  --cic-accent:      #1b2d52;
-  --cic-accent-hover:#0f1d38;
-  --cic-accent-tint: rgba(27, 45, 82, 0.08);
-  --cic-text:        #1a1a1a;
-  --cic-text-muted:  #666666;
-  --cic-text-faint:  #888888;
-  --cic-border:      #cccccc;
-  --cic-surface:     #ffffff;
-  --cic-surface-alt: #fafafa;
-  --cic-radius:      4px;
-}
+/* popup.css */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
-  width: 280px;
-  color: var(--cic-text);
-  background: var(--cic-surface);
+  color: #1b1b1b;
+  background: #fff;
+  width: 320px;
+  min-height: 200px;
 }
-
-/* --- Header + tab bar --- */
 
 header {
-  background: var(--cic-accent);
-  color: #fff;
-  padding: 10px 14px 0;
+  padding: 12px 14px 0;
+  border-bottom: 1px solid #e5e5e5;
 }
 
-header h1 {
+h1 {
   font-size: 14px;
   font-weight: 700;
+  color: #1b2d52;
   margin-bottom: 8px;
 }
 
-.tabs { display: flex; gap: 2px; }
+.tabs {
+  display: flex;
+  gap: 0;
+}
 
 .tab {
   flex: 1;
-  padding: 6px 0;
-  font-size: 12px;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.75);
+  background: none;
   border: none;
-  border-radius: 4px 4px 0 0;
+  border-bottom: 2px solid transparent;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color .15s, border-color .15s;
 }
-
-.tab.active,
-.tab:hover {
-  background: var(--cic-surface);
-  color: var(--cic-accent);
+.tab.active {
+  color: #1b2d52;
+  border-bottom-color: #1b2d52;
 }
+.tab:hover { color: #1b2d52; }
 
-/* --- Main content area --- */
+main { padding: 12px 14px 14px; }
 
-main { padding: 12px 14px; }
-
-.tab-panel        { display: block; }
 .tab-panel.hidden { display: none; }
-
-/* --- Form labels --- */
 
 label {
   display: block;
+  font-size: 11px;
   font-weight: 600;
-  margin: 10px 0 3px;
-  color: #333;
+  color: #444;
+  margin-top: 10px;
+  margin-bottom: 3px;
 }
-
 label:first-child { margin-top: 0; }
 
-.unit     { font-weight: 400; color: var(--cic-text-muted); }
-.optional { font-weight: 400; font-size: 11px; color: var(--cic-text-faint); }
-.hint     { font-size: 11px; color: var(--cic-text-faint); margin-top: 4px; line-height: 1.4; }
-
-/* --- Inline row (month + year side by side) --- */
-
-.row-inline        { display: flex; gap: 6px; }
-.row-inline select { flex: 1; }
-.row-inline input  { flex: 0 0 auto; }
-
-/* --- Inputs & selects --- */
-
-input,
-select {
+input, select {
   width: 100%;
   padding: 5px 8px;
-  border: 1px solid var(--cic-border);
-  border-radius: var(--cic-radius);
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
   font-size: 13px;
-  background: var(--cic-surface-alt);
+  color: #1b1b1b;
+  background: #fff;
+  outline: none;
+  transition: border-color .15s;
 }
+input:focus, select:focus { border-color: #1b2d52; }
 
-input:focus,
-select:focus {
-  outline: 2px solid var(--cic-accent);
-  outline-offset: 1px;
-  background: var(--cic-surface);
+.row-inline {
+  display: flex;
+  gap: 6px;
 }
+.row-inline select { flex: 1; }
+.row-inline input  { flex: 0 0 80px; }
 
-/* --- Primary button (calculate) --- */
+.unit     { font-weight: 400; color: #888; }
+.optional { font-weight: 400; color: #aaa; font-style: italic; }
+.hint     { font-size: 11px; color: #999; margin-top: 2px; }
 
-button#calculateBtn {
-  margin-top: 12px;
+button {
+  display: block;
   width: 100%;
+  margin-top: 12px;
   padding: 7px;
-  background: var(--cic-accent);
+  background: #1b2d52;
   color: #fff;
   border: none;
-  border-radius: var(--cic-radius);
+  border-radius: 4px;
   font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-button#calculateBtn:hover { background: var(--cic-accent-hover); }
-
-/* --- Secondary button (reset) --- */
-
-.btn-secondary {
-  margin-top: 14px;
-  width: 100%;
-  padding: 6px;
-  background: transparent;
-  color: var(--cic-accent);
-  border: 1px solid var(--cic-accent);
-  border-radius: var(--cic-radius);
-  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background .15s;
 }
+button:hover { background: #243d72; }
 
-.btn-secondary:hover {
-  background: var(--cic-accent);
-  color: #fff;
+.btn-secondary {
+  background: #f0f0f0;
+  color: #444;
+  margin-top: 16px;
 }
-
-/* --- Results panel --- */
+.btn-secondary:hover { background: #e0e0e0; }
 
 .results {
-  margin-top: 12px;
-  border-top: 1px solid #eee;
+  margin-top: 14px;
+  border-top: 1px solid #e5e5e5;
   padding-top: 10px;
 }
-
 .results h2 {
   font-size: 12px;
+  font-weight: 700;
+  color: #1b2d52;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--cic-text-faint);
+  letter-spacing: .04em;
   margin-bottom: 6px;
 }
 
-#results-table {
-  width: 100%;
-  border-collapse: collapse;
-  line-height: 1.6;
+table { width: 100%; border-collapse: collapse; }
+td {
+  padding: 3px 0;
+  font-size: 12px;
+  color: #333;
+  vertical-align: top;
 }
-
-#results-table td            { padding: 2px 0; }
-#results-table td:last-child { text-align: right; font-weight: 600; }
-
-/* Total row — accent top border for visual separation */
+td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .row-total td {
   font-weight: 700;
-  border-top: 2px solid var(--cic-accent);
+  color: #1b2d52;
+  border-top: 1px solid #ccc;
   padding-top: 5px;
+  font-size: 13px;
 }
 
 .note {
   font-size: 11px;
-  color: var(--cic-text-faint);
+  color: #999;
   margin-top: 6px;
-  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Settings transport grid */
+.settings-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b2d52;
+  margin-top: 14px;
+  margin-bottom: 2px;
+}
+
+.transport-grid {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+.transport-grid label {
+  margin: 0;
+  font-size: 12px;
+}
+.transport-grid input {
+  padding: 4px 6px;
+  font-size: 12px;
 }

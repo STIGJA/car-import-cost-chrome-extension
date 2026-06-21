@@ -1,19 +1,5 @@
 /**
  * autoscout24.js — Scraper voor AutoScout24
- *
- * ListingInfo shape:
- * {
- *   price:        { value: number, unit: 'EUR' }
- *   firstRegDate: { value: string, unit: 'MM/YYYY' } | null
- *   fuelType:     { value: 'petrol'|'diesel'|'hybrid'|'electric' }
- *   mileage:      { value: number, unit: 'km' } | null
- *   powerKw:      { value: number, unit: 'kW' } | null
- *   euroNorm:     { value: string } | null
- *   co2:          { value: number, unit: 'g/km', source, method, confidence }
- *   postcode:     string | null
- *   country:      string | null
- *   el:           Element  (search page only)
- * }
  */
 
 'use strict';
@@ -21,30 +7,25 @@
 (function (root) {
 
   // ---------------------------------------------------------------------------
-  // DOM helpers
+  // Helpers
   // ---------------------------------------------------------------------------
 
   /**
    * Parses a price string into a number.
-   * Strips everything that is not a digit, including superscript footnotes
-   * like the ¹ character (U+00B9) and trailing \u2060 word-joiners that
-   * AutoScout24 appends to prices.
+   * Strips superscript footnote characters (¹²³⁰-⁹), trailing " 1" markers,
+   * currency symbols, thousands separators, and whitespace.
    *
-   * Examples that must parse correctly:
-   *   "\u20ac\u00a0103.489\u00b9"  → 103489
-   *   "103.489 1"              → 103489
-   *   "103,489"                → 103489
+   * Examples:
+   *   "€\u00a0103.489\u00b9"  → 103489
+   *   "103.489 1"           → 103489
+   *   "103,489"             → 103489
    */
   function parsePrice(raw) {
     if (!raw) return null;
-    // Remove superscript digits (\u00b9 \u00b2 \u00b3 \u2070-\u2079),
-    // regular trailing digits that are footnote markers (single digit after
-    // a space or directly after the number), and all non-numeric characters
-    // except digits.
     const cleaned = raw
-      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, '')  // superscript digits
-      .replace(/\s+\d+$/, '')                              // trailing " 1", " 2" etc.
-      .replace(/[^0-9]/g, '');                             // keep only digits
+      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, '') // superscript digits
+      .replace(/\s+\d+$/, '')                            // trailing " 1", " 2"
+      .replace(/[^0-9]/g, '');                           // keep digits only
     return cleaned ? parseInt(cleaned, 10) : null;
   }
 
@@ -57,8 +38,8 @@
   function normalizeFuelType(raw) {
     const l = (raw ?? '').toLowerCase();
     if (l.includes('elektr') || l.includes('electric') || l.includes('bev')) return 'electric';
-    if (l.includes('diesel'))                                                  return 'diesel';
-    if (l.includes('hybrid') || l.includes('phev'))                           return 'hybrid';
+    if (l.includes('diesel'))                                                 return 'diesel';
+    if (l.includes('hybrid') || l.includes('phev'))                          return 'hybrid';
     return 'petrol';
   }
 
@@ -72,17 +53,29 @@
     return null;
   }
 
+  /**
+   * Scrapes the listing price from the price section only.
+   * Collects all candidate price values within [data-testid="price-section"]
+   * and returns the SMALLEST valid one — this avoids picking up leasing totals
+   * or inflated combined values that sometimes appear in the same block.
+   */
   function scrapePrice() {
     const section = document.querySelector('[data-testid="price-section"]');
     if (!section) return null;
-    for (const span of section.querySelectorAll('span')) {
-      const text = span.textContent.trim();
-      if (text.length < 25) {
-        const val = parsePrice(text);
-        if (val && val > 500) return val;
-      }
+
+    const candidates = [];
+    for (const el of section.querySelectorAll('span, p, div, strong, h2, h3')) {
+      // Skip elements that contain child elements with prices to avoid double-counting
+      if (el.children.length > 0) continue;
+      const text = el.textContent.trim();
+      if (!text || text.length > 20) continue;
+      const val = parsePrice(text);
+      if (val && val > 500 && val < 10_000_000) candidates.push(val);
     }
-    return null;
+
+    if (!candidates.length) return null;
+    // Return the smallest — leasing/total figures are always larger than the purchase price
+    return Math.min(...candidates);
   }
 
   function parsePowerKw(raw) {
@@ -131,6 +124,9 @@
 
   function parseLocationText(text) {
     if (!text) return null;
+    // Country prefix like "DE-86343" (AutoScout24 dealer format)
+    const prefixed = text.match(/\b(DE|BE|FR|IT|ES|AT|CH|PL|NL|LU|CZ|HU|RO|PT)[-\s](\d{4,5})\b/);
+    if (prefixed) return { postcode: prefixed[2], country: prefixed[1] };
     const de = text.match(/\b(\d{5})\b/);
     if (de) return { postcode: de[1], country: 'DE' };
     const be = text.match(/\b([1-9]\d{3})\b/);
@@ -187,14 +183,16 @@
 
     const results = [];
     for (const card of cards) {
-      // Price: look for the first element that contains a plausible price
       let price = null;
-      for (const el of card.querySelectorAll('span, p, div, strong')) {
+      // Only look inside the price element, not the whole card
+      const priceEl = card.querySelector('[data-testid="price-label"], [class*="Price"], [class*="price"]');
+      const searchIn = priceEl ?? card;
+      for (const el of searchIn.querySelectorAll('span, p, strong')) {
+        if (el.children.length > 0) continue;
         const text = el.textContent.trim();
-        if (text.length < 25 && /[\u20ac0-9]/.test(text)) {
-          const val = parsePrice(text);
-          if (val && val > 500) { price = val; break; }
-        }
+        if (!text || text.length > 20) continue;
+        const val = parsePrice(text);
+        if (val && val > 500 && val < 10_000_000) { price = val; break; }
       }
       if (!price) continue;
 
