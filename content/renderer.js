@@ -58,16 +58,18 @@
   function buildCompactRow(item) {
     if (!item.included && !item.isTotal) return '';
 
+    let labelHtml = item.label;
+    if (item.note?.warning) {
+      labelHtml += ` <span class="cic-warn" title="${item.note.warning}">&#x26A0;&#xFE0F;</span>`;
+    }
+
     let valueHtml = fmt(item.value);
     if (item.note?.valueTooltip) {
       valueHtml = `<span class="cic-tip" title="${item.note.valueTooltip}">${valueHtml}</span>`;
     }
-    if (item.note?.warning) {
-      valueHtml += ` <span class="cic-warn" title="${item.note.warning}">&#x26A0;&#xFE0F;</span>`;
-    }
 
     const cls = item.isTotal ? ' class="cic-compact-total"' : '';
-    return `<tr${cls}><td>${item.label}</td><td>${valueHtml}</td></tr>`;
+    return `<tr${cls}><td>${labelHtml}</td><td>${valueHtml}</td></tr>`;
   }
 
   function injectSearchWidget(result, cardEl) {
@@ -81,7 +83,9 @@
       `<div class="cic-compact-title">Geschatte importkosten</div>` +
       `<table class="cic-compact-table">${rows}</table>`;
 
-    // Insert after the price element — try known AS24 selectors first
+    // Voorkom dat klik op widget de kaart opent
+    widget.addEventListener('click', (e) => e.stopPropagation());
+
     const priceEl =
       cardEl.querySelector('[data-testid="price"]') ??
       cardEl.querySelector('[class*="Price"]') ??

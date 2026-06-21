@@ -37,10 +37,6 @@
    */
   function parsePrice(raw) {
     if (!raw) return null;
-    // Remove superscript digits (\u00b9 \u00b2 \u00b3 \u2070-\u2079),
-    // regular trailing digits that are footnote markers (single digit after
-    // a space or directly after the number), and all non-numeric characters
-    // except digits.
     const cleaned = raw
       .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, '')  // superscript digits
       .replace(/\s+\d+$/, '')                              // trailing " 1", " 2" etc.
@@ -71,26 +67,58 @@
     }
     return null;
   }
-function scrapePrice() {
-  const section = document.querySelector('[data-testid="price-section"]');
-  if (!section) return null;
 
-  for (const span of section.querySelectorAll('span')) {
-    const directText = Array.from(span.childNodes)
-      .filter(n => n.nodeType === Node.TEXT_NODE)
-      .map(n => n.textContent.trim())
-      .join('');
+  function scrapePrice() {
+    const section = document.querySelector('[data-testid="price-section"]');
+    if (!section) return null;
 
-    if (!directText) continue;
+    for (const span of section.querySelectorAll('span')) {
+      const directText = Array.from(span.childNodes)
+        .filter(n => n.nodeType === Node.TEXT_NODE)
+        .map(n => n.textContent.trim())
+        .join('');
 
-    const isPriceOnly = /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(directText);
-    if (!isPriceOnly) continue;
+      if (!directText) continue;
 
-    const val = parsePrice(directText);
-    if (val && val > 500 && val < 10_000_000) return val;
+      const isPriceOnly = /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(directText);
+      if (!isPriceOnly) continue;
+
+      const val = parsePrice(directText);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+    return null;
   }
-  return null;
-}
+
+  function scrapePriceFromCard(card) {
+    // Try specific AS24 data-testid selectors first
+    const priceEl =
+      card.querySelector('[data-testid="price"]') ??
+      card.querySelector('[data-testid="listing-item-price"]') ??
+      card.querySelector('[data-testid="regular-price"]') ??
+      card.querySelector('[class*="Price__value"]') ??
+      card.querySelector('[class*="PriceInfo"]');
+
+    if (priceEl) {
+      // Use only direct text nodes to avoid picking up child element text (e.g. footnotes)
+      const directText = Array.from(priceEl.childNodes)
+        .filter(n => n.nodeType === Node.TEXT_NODE)
+        .map(n => n.textContent.trim())
+        .join('');
+      const val = parsePrice(directText || priceEl.textContent);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+
+    // Fallback: scan spans/strongs but skip elements that look like km or year
+    for (const el of card.querySelectorAll('span, strong, p')) {
+      const text = el.textContent.trim();
+      // Must contain € sign or look like a price (no 'km', no bare 4-digit year)
+      if (!/[\u20ac]/.test(text)) continue;
+      if (text.length > 30) continue;
+      const val = parsePrice(text);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+    return null;
+  }
 
   function parsePowerKw(raw) {
     if (!raw) return null;
@@ -194,27 +222,42 @@ function scrapePrice() {
 
     const results = [];
     for (const card of cards) {
-      // Price: look for the first element that contains a plausible price
-      let price = null;
-      for (const el of card.querySelectorAll('span, p, div, strong')) {
-        const text = el.textContent.trim();
-        if (text.length < 25 && /[\u20ac0-9]/.test(text)) {
-          const val = parsePrice(text);
-          if (val && val > 500) { price = val; break; }
-        }
-      }
+      const price = scrapePriceFromCard(card);
       if (!price) continue;
 
-      const allText  = card.textContent;
-      const yearM    = allText.match(/(19|20)\d{2}/);
-      const year     = yearM ? parseInt(yearM[0], 10) : null;
-      const fuelType = normalizeFuelType(allText);
-      const loc      = parseLocationText(allText);
+      const allText = card.textContent;
+
+      // Registratiedatum: zoek eerst specifiek element, dan MM/YYYY patroon, dan losse jaar
+      const regDateEl =
+        card.querySelector('[data-testid="listing-item-first-registration"]') ??
+        card.querySelector('[class*="FirstRegistration"]') ??
+        card.querySelector('[class*="firstRegistration"]');
+      const regDateText = regDateEl?.textContent?.trim();
+      const regDateM = regDateText?.match(/^(0[1-9]|1[0-2])\/((19|20)\d{2})$/);
+      const yearFromText = allText.match(/\b(0[1-9]|1[0-2])\/((19|20)\d{2})\b/);
+      const year =
+        regDateM    ? parseInt(regDateM[2])   :
+        yearFromText ? parseInt(yearFromText[2]) :
+        null;
+      const firstRegDate =
+        regDateM     ? regDateText :
+        yearFromText ? yearFromText[0] :
+        year         ? `01/${year}` :
+        null;
+
+      // Brandstof: specifiek element eerst
+      const fuelEl =
+        card.querySelector('[data-testid="listing-item-fuel-type"]') ??
+        card.querySelector('[class*="FuelType"]') ??
+        card.querySelector('[class*="fuelType"]');
+      const fuelType = normalizeFuelType(fuelEl?.textContent ?? allText);
+
+      const loc = parseLocationText(allText);
 
       results.push({
         el:           card,
-        price:        { value: price,   unit: 'EUR' },
-        firstRegDate: year ? { value: `01/${year}`, unit: 'MM/YYYY' } : null,
+        price:        { value: price, unit: 'EUR' },
+        firstRegDate: firstRegDate ? { value: firstRegDate, unit: 'MM/YYYY' } : null,
         fuelType:     { value: fuelType },
         mileage:      null,
         powerKw:      null,
