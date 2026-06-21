@@ -30,19 +30,19 @@ export function injectListingWidget(carData, costs) {
   widget.innerHTML = `
     <div class="cic-header">
       <span class="cic-flag">&#x1F1F3;&#x1F1F1;</span>
-      <span class="cic-title">Import costs to the Netherlands</span>
+      <span class="cic-title">Importkosten naar Nederland</span>
     </div>
     <table class="cic-table">
-      <tr><td>Asking price</td>         <td class="cic-val">${fmt(costs.price)}</td></tr>
-      <tr><td>Import duty (6.5%)</td>   <td class="cic-val">${fmt(costs.importDuty)}</td></tr>
-      <tr><td>VAT (21%)</td>            <td class="cic-val">${fmt(costs.vat)}</td></tr>
+      <tr><td>Vraagprijs</td>          <td class="cic-val">${fmt(costs.price)}</td></tr>
+      <tr><td>Invoerrechten (6,5%)</td><td class="cic-val">${fmt(costs.importDuty)}</td></tr>
+      <tr><td>BTW (21%)</td>           <td class="cic-val">${fmt(costs.vat)}</td></tr>
       ${costs.bpm > 0 ? `<tr><td>BPM</td><td class="cic-val">${fmt(costs.bpm)}</td></tr>` : ''}
       <tr class="cic-total-row">
-        <td>Total</td>
+        <td>Totaal</td>
         <td class="cic-val">${fmt(costs.total)}</td>
       </tr>
     </table>
-    <p class="cic-note">${costs.bpm > 0 ? '* BPM calculated based on CO\u2082 and fuel type.' : '* EV: no BPM applicable.'}</p>
+    <p class="cic-note">${costs.bpm > 0 ? '* BPM berekend op basis van CO\u2082 en brandstof.' : '* EV: geen BPM.'}</p>
   `;
 
   const anchor =
@@ -66,7 +66,7 @@ export async function injectSearchWidgets(cards, settings) {
     const badge = document.createElement('div');
     badge.className = 'cic-badge';
     badge.innerHTML = `
-      <span class="cic-badge-label">&#x1F1F3;&#x1F1F1; Total</span>
+      <span class="cic-badge-label">&#x1F1F3;&#x1F1F1; Totaal</span>
       <span class="cic-badge-value">${fmt(costs.total)}</span>
     `;
 

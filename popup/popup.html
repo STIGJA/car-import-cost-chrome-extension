@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
   <meta charset="UTF-8" />
   <title>Car Import Cost</title>
@@ -7,10 +7,10 @@
 </head>
 <body>
   <header>
-    <h1>&#x1F1F3;&#x1F1F1; Import Costs NL</h1>
+    <h1>&#x1F1F3;&#x1F1F1; Importkosten NL</h1>
     <nav class="tabs" role="tablist">
-      <button class="tab active" role="tab" data-tab="calc"     aria-selected="true" >Calculation</button>
-      <button class="tab"        role="tab" data-tab="settings" aria-selected="false">Settings</button>
+      <button class="tab active" role="tab" data-tab="calc"     aria-selected="true" >Berekening</button>
+      <button class="tab"        role="tab" data-tab="settings" aria-selected="false">Instellingen</button>
     </nav>
   </header>
 
@@ -18,44 +18,44 @@
     <!-- Tab: Manual calculation -->
     <section class="tab-panel" id="tab-calc">
 
-      <label for="carPrice">Asking price (&#x20AC;)</label>
-      <input type="number" id="carPrice" placeholder="e.g. 15000" min="0" />
+      <label for="carPrice">Vraagprijs (&#x20AC;)</label>
+      <input type="number" id="carPrice" placeholder="bijv. 15000" min="0" />
 
-      <label>First registration</label>
+      <label>Eerste registratie</label>
       <div class="row-inline">
         <select id="regMonth">
-          <option value="">Month</option>
+          <option value="">Maand</option>
           <option value="1">Jan</option>
           <option value="2">Feb</option>
-          <option value="3">Mar</option>
+          <option value="3">Mrt</option>
           <option value="4">Apr</option>
-          <option value="5">May</option>
+          <option value="5">Mei</option>
           <option value="6">Jun</option>
           <option value="7">Jul</option>
           <option value="8">Aug</option>
           <option value="9">Sep</option>
-          <option value="10">Oct</option>
+          <option value="10">Okt</option>
           <option value="11">Nov</option>
           <option value="12">Dec</option>
         </select>
-        <input type="number" id="regYear" placeholder="Year" min="1990" max="2030" style="width:80px" />
+        <input type="number" id="regYear" placeholder="Jaar" min="1990" max="2030" style="width:80px" />
       </div>
 
-      <label for="fuelType">Fuel type</label>
+      <label for="fuelType">Brandstof</label>
       <select id="fuelType">
-        <option value="petrol">Petrol</option>
+        <option value="petrol">Benzine</option>
         <option value="diesel">Diesel</option>
-        <option value="electric">Electric</option>
-        <option value="hybrid">Hybrid</option>
+        <option value="electric">Elektrisch</option>
+        <option value="hybrid">Hybride</option>
       </select>
 
-      <label for="co2">CO&#x2082; <span class="unit">g/km</span> <span class="optional">(optional)</span></label>
-      <input type="number" id="co2" placeholder="e.g. 138" min="0" max="400" />
+      <label for="co2">CO&#x2082; <span class="unit">g/km</span> <span class="optional">(optioneel)</span></label>
+      <input type="number" id="co2" placeholder="bijv. 138" min="0" max="400" />
 
-      <button id="calculateBtn">Calculate</button>
+      <button id="calculateBtn">Bereken</button>
 
       <div class="results" id="results" hidden>
-        <h2>Cost breakdown</h2>
+        <h2>Kostenopbouw</h2>
         <table id="results-table"></table>
         <p id="r-note" class="note"></p>
       </div>
@@ -63,9 +63,9 @@
 
     <!-- Tab: Settings -->
     <section class="tab-panel hidden" id="tab-settings">
-      <label for="postcode">Reference postcode</label>
-      <input type="text" id="postcode" placeholder="e.g. 9203" maxlength="6" />
-      <p class="hint">Will be used later for transport cost estimation.</p>
+      <label for="postcode">Referentie postcode</label>
+      <input type="text" id="postcode" placeholder="bijv. 9203" maxlength="6" />
+      <p class="hint">Wordt later gebruikt voor transportkosten-schatting.</p>
     </section>
   </main>
 

@@ -31,7 +31,7 @@
     let labelHtml = item.label;
     if (item.note?.warning) {
       labelHtml +=
-        ` <span class="cic-warning-icon" title="${item.note.warning}" aria-label="Estimated value">\u26a0\ufe0f</span>`;
+        ` <span class="cic-warning-icon" title="${item.note.warning}" aria-label="Geschatte waarde">\u26a0\ufe0f</span>`;
     }
 
     // Value cell — add dotted underline when a tooltip with calculation detail is available
@@ -62,7 +62,7 @@
     widget.innerHTML = `
       <div class="cic-header">
         <span class="cic-flag">\ud83c\uddf3\ud83c\uddf1</span>
-        <span class="cic-title">Import costs to the Netherlands</span>
+        <span class="cic-title">Importkosten naar Nederland</span>
       </div>
       <table class="cic-table">${rows}</table>
     `;
@@ -84,7 +84,7 @@
     const badge = document.createElement('div');
     badge.className = 'cic-badge';
     badge.innerHTML =
-      `<span class="cic-badge-label">\ud83c\uddf3\ud83c\uddf1 Total NL</span>` +
+      `<span class="cic-badge-label">\ud83c\uddf3\ud83c\uddf1 Totaal</span>` +
       `<span class="cic-badge-value">${fmt(total.value)}</span>`;
 
     // Insert after the first element that looks like a price (numeric value > 500)
