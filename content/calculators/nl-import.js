@@ -63,7 +63,8 @@
     const transport = getTransportCost(carCountry, settings.transportByCountry);
 
     const co2 = listing.co2.value ?? estimateCO2(fuelType, listing.year?.value);
-    const co2Estimated = listing.co2.source === "estimated" || listing.co2.value == null;
+    const co2Estimated =
+      listing.co2.source === "estimated" || listing.co2.value == null;
     const co2Method = listing.co2.method ?? null;
 
     const months = ageMonthsFrom(firstReg);
@@ -75,8 +76,10 @@
     const bpmExact = bpmNetto(co2, fuelType, years);
 
     // Als CO2 geschat is: afronden op dichtstbijzijnde €100 en ~ prefix tonen
-    const bpmDisplay = co2Estimated ? Math.round(bpmExact / 100) * 100 : bpmExact;
-    const bpmApprox  = co2Estimated;
+    const bpmDisplay = co2Estimated
+      ? Math.round(bpmExact / 100) * 100
+      : bpmExact;
+    const bpmApprox = co2Estimated;
 
     const total = Math.round(price + vat + bpmExact + transport + fixedCosts);
 

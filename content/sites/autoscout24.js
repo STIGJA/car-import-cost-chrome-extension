@@ -57,7 +57,8 @@
     // Eerst: specifiek element (meest betrouwbaar)
     if (fuelEl) {
       const t = fuelEl.textContent.trim().toLowerCase();
-      if (t.includes("elektr") || t.includes("electric") || t.includes("bev")) return "electric";
+      if (t.includes("elektr") || t.includes("electric") || t.includes("bev"))
+        return "electric";
       if (t.includes("diesel")) return "diesel";
       if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
     }
@@ -95,7 +96,9 @@
       if (!directText) continue;
 
       const isPriceOnly =
-        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(directText);
+        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
+          directText,
+        );
       if (!isPriceOnly) continue;
 
       const val = parsePrice(directText);
@@ -186,7 +189,12 @@
       "1\u00e8re mise en circulation",
     ]);
     const fuelRaw =
-      scrapeDetailValue(["Kraftstoff", "Fuel type", "Brandstof", "Carburant"]) ?? "";
+      scrapeDetailValue([
+        "Kraftstoff",
+        "Fuel type",
+        "Brandstof",
+        "Carburant",
+      ]) ?? "";
     const co2Raw = scrapeDetailValue([
       "CO2-Emissionen",
       "CO2 emissions",
@@ -194,7 +202,12 @@
       "\u00c9missions CO2",
       "CO\u2082",
     ]);
-    const powerRaw = scrapeDetailValue(["Leistung", "Power", "Vermogen", "Puissance"]);
+    const powerRaw = scrapeDetailValue([
+      "Leistung",
+      "Power",
+      "Vermogen",
+      "Puissance",
+    ]);
     const euroRaw = scrapeDetailValue([
       "Schadstoffklasse",
       "Emission class",
@@ -202,7 +215,11 @@
       "Classe d\u2019\u00e9mission",
       "Euro",
     ]);
-    const mileageRaw = scrapeDetailValue(["Kilometerstand", "Mileage", "Kilom\u00e9trage"]);
+    const mileageRaw = scrapeDetailValue([
+      "Kilometerstand",
+      "Mileage",
+      "Kilom\u00e9trage",
+    ]);
 
     // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
     const fuelType = normalizeFuelType(fuelRaw, null);
@@ -213,9 +230,13 @@
 
     const listing = {
       price: { value: price, unit: "EUR" },
-      firstRegDate: firstRegRaw ? { value: firstRegRaw, unit: "MM/YYYY" } : null,
+      firstRegDate: firstRegRaw
+        ? { value: firstRegRaw, unit: "MM/YYYY" }
+        : null,
       fuelType: { value: fuelType },
-      mileage: mileageRaw ? { value: parseNumber(mileageRaw), unit: "km" } : null,
+      mileage: mileageRaw
+        ? { value: parseNumber(mileageRaw), unit: "km" }
+        : null,
       powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
       euroNorm: euroRaw ? { value: euroRaw } : null,
       co2: buildCO2Field(fuelType, euroRaw, powerKw, year, co2Scraped),
