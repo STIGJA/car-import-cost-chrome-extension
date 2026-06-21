@@ -23,27 +23,12 @@
   // Helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Parses a price string into a number.
-   * Strips everything that is not a digit, including superscript footnotes
-   * like the ¹ character (U+00B9) and trailing \u2060 word-joiners that
-   * AutoScout24 appends to prices.
-   *
-   * Examples that must parse correctly:
-   *   "\u20ac\u00a0103.489\u00b9"  → 103489
-   *   "103.489 1"              → 103489
-   *   "103,489"                → 103489
-   */
   function parsePrice(raw) {
     if (!raw) return null;
-    // Remove superscript digits (\u00b9 \u00b2 \u00b3 \u2070-\u2079),
-    // regular trailing digits that are footnote markers (single digit after
-    // a space or directly after the number), and all non-numeric characters
-    // except digits.
     const cleaned = raw
-      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "") // superscript digits
-      .replace(/\s+\d+$/, "") // trailing " 1", " 2" etc.
-      .replace(/[^0-9]/g, ""); // keep only digits
+      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "")
+      .replace(/\s+\d+$/, "")
+      .replace(/[^0-9]/g, "");
     return cleaned ? parseInt(cleaned, 10) : null;
   }
 
@@ -71,6 +56,7 @@
     }
     return null;
   }
+
   function scrapePrice() {
     const section = document.querySelector('[data-testid="price-section"]');
     if (!section) return null;
@@ -84,9 +70,7 @@
       if (!directText) continue;
 
       const isPriceOnly =
-        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
-          directText,
-        );
+        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(directText);
       if (!isPriceOnly) continue;
 
       const val = parsePrice(directText);
@@ -177,12 +161,7 @@
       "1\u00e8re mise en circulation",
     ]);
     const fuelRaw =
-      scrapeDetailValue([
-        "Kraftstoff",
-        "Fuel type",
-        "Brandstof",
-        "Carburant",
-      ]) ?? "";
+      scrapeDetailValue(["Kraftstoff", "Fuel type", "Brandstof", "Carburant"]) ?? "";
     const co2Raw = scrapeDetailValue([
       "CO2-Emissionen",
       "CO2 emissions",
@@ -190,12 +169,7 @@
       "\u00c9missions CO2",
       "CO\u2082",
     ]);
-    const powerRaw = scrapeDetailValue([
-      "Leistung",
-      "Power",
-      "Vermogen",
-      "Puissance",
-    ]);
+    const powerRaw = scrapeDetailValue(["Leistung", "Power", "Vermogen", "Puissance"]);
     const euroRaw = scrapeDetailValue([
       "Schadstoffklasse",
       "Emission class",
@@ -203,11 +177,7 @@
       "Classe d\u2019\u00e9mission",
       "Euro",
     ]);
-    const mileageRaw = scrapeDetailValue([
-      "Kilometerstand",
-      "Mileage",
-      "Kilom\u00e9trage",
-    ]);
+    const mileageRaw = scrapeDetailValue(["Kilometerstand", "Mileage", "Kilom\u00e9trage"]);
 
     const fuelType = normalizeFuelType(fuelRaw);
     const powerKw = parsePowerKw(powerRaw);
@@ -217,13 +187,9 @@
 
     const listing = {
       price: { value: price, unit: "EUR" },
-      firstRegDate: firstRegRaw
-        ? { value: firstRegRaw, unit: "MM/YYYY" }
-        : null,
+      firstRegDate: firstRegRaw ? { value: firstRegRaw, unit: "MM/YYYY" } : null,
       fuelType: { value: fuelType },
-      mileage: mileageRaw
-        ? { value: parseNumber(mileageRaw), unit: "km" }
-        : null,
+      mileage: mileageRaw ? { value: parseNumber(mileageRaw), unit: "km" } : null,
       powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
       euroNorm: euroRaw ? { value: euroRaw } : null,
       co2: buildCO2Field(fuelType, euroRaw, powerKw, year, co2Scraped),
@@ -258,7 +224,7 @@
 
     for (const el of card.querySelectorAll("span, strong, p")) {
       const text = el.textContent.trim();
-      if (!/[\u20ac]/.test(text)) continue; // € verplicht
+      if (!/[\u20ac]/.test(text)) continue;
       if (text.length > 30) continue;
       const val = parsePrice(text);
       if (val && val > 500 && val < 10_000_000) return val;
@@ -278,9 +244,19 @@
       if (!price) continue;
 
       const allText = card.textContent;
+
       const yearM = allText.match(/(19|20)\d{2}/);
       const year = yearM ? parseInt(yearM[0], 10) : null;
+
       const fuelType = normalizeFuelType(allText);
+
+      // Vermogen parsen uit kaart-tekst voor betere CO2 schatting
+      const powerEl =
+        card.querySelector('[data-testid="listing-item-power"]') ??
+        card.querySelector('[class*="Power"]') ??
+        card.querySelector('[class*="power"]');
+      const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
+
       const loc = parseLocationText(allText);
 
       results.push({
@@ -289,9 +265,9 @@
         firstRegDate: year ? { value: `01/${year}`, unit: "MM/YYYY" } : null,
         fuelType: { value: fuelType },
         mileage: null,
-        powerKw: null,
+        powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
         euroNorm: null,
-        co2: buildCO2Field(fuelType, null, null, year, null),
+        co2: buildCO2Field(fuelType, null, powerKw, year, null),
         postcode: loc?.postcode ?? null,
         country: loc?.country ?? "DE",
       });
