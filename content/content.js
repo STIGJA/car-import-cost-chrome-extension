@@ -7,21 +7,29 @@
 
   async function waitForListing(scrapeFn, retries = 20, delayMs = 500) {
     for (let i = 0; i < retries; i++) {
-      const result = scrapeFn();
-      if (result && result.price?.value) return result;
+      try {
+        const result = scrapeFn();
+        if (result?.price?.value) return result;
+      } catch (e) {
+        console.warn('[CarImport] scrape poging', i + 1, 'fout:', e);
+      }
       await new Promise((r) => setTimeout(r, delayMs));
     }
-    console.warn('[CarImport] Listing data niet gevonden na', retries, 'pogingen.');
+    console.warn('[CarImport] Listing data niet gevonden.');
     return null;
   }
 
   async function waitForCards(scrapeFn, retries = 20, delayMs = 500) {
     for (let i = 0; i < retries; i++) {
-      const result = scrapeFn();
-      if (Array.isArray(result) && result.length) return result;
+      try {
+        const result = scrapeFn();
+        if (Array.isArray(result) && result.length) return result;
+      } catch (e) {
+        console.warn('[CarImport] scrape poging', i + 1, 'fout:', e);
+      }
       await new Promise((r) => setTimeout(r, delayMs));
     }
-    console.warn('[CarImport] Zoekresultaten niet gevonden na', retries, 'pogingen.');
+    console.warn('[CarImport] Zoekresultaten niet gevonden.');
     return null;
   }
 
@@ -45,11 +53,14 @@
   ];
 
   const site = SITES.find((s) => s.match());
-  if (!site) return;
+  if (!site) { console.log('[CarImport] Site niet herkend:', host); return; }
 
   const scraper   = site.scraper();
   const calc      = site.calc();
   const isListing = site.isListing();
+
+  if (!scraper) { console.error('[CarImport] Scraper niet geladen (CIC_AS24 undefined)'); return; }
+  if (!calc)    { console.error('[CarImport] Calculator niet geladen (CIC_NL undefined)'); return; }
 
   console.log('[CarImport] Gestart op', host, isListing ? '(advertentie)' : '(zoekresultaten)');
 
@@ -57,7 +68,9 @@
     const listing = await waitForListing(() => scraper.scrapeListingPage());
     if (!listing) return;
     const result = calc.calculate(listing, settings);
+    if (!result) return;
     const anchor = document.querySelector('[data-testid="price-section"]');
+    if (!anchor) { console.warn('[CarImport] price-section anchor niet gevonden'); }
     window.CIC_Renderer.injectListingWidget(result, anchor);
     return;
   }
@@ -67,7 +80,7 @@
 
   for (const listing of cards) {
     const result = calc.calculate(listing, settings);
-    window.CIC_Renderer.injectSearchWidget(result, listing.el);
+    if (result) window.CIC_Renderer.injectSearchWidget(result, listing.el);
   }
 
   const observer = new MutationObserver(() => {
@@ -76,7 +89,7 @@
     for (const listing of newCards) {
       if (listing.el.querySelector('.cic-compact')) continue;
       const result = calc.calculate(listing, settings);
-      window.CIC_Renderer.injectSearchWidget(result, listing.el);
+      if (result) window.CIC_Renderer.injectSearchWidget(result, listing.el);
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });
