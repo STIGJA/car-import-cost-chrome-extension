@@ -70,29 +70,20 @@
     return `<tr${cls}><td>${item.label}</td><td>${valueHtml}</td></tr>`;
   }
 
-  function injectSearchWidget(result, cardEl) {
-    if (!cardEl || cardEl.querySelector('.cic-compact')) return;
+function injectSearchWidget(result, cardEl) {
+  if (!cardEl || cardEl.querySelector('.cic-compact')) return;
 
-    const rows = result.lineItems.map(buildCompactRow).join('');
+  const rows = result.lineItems.map(buildCompactRow).join('');
 
-    const widget = document.createElement('div');
-    widget.className = 'cic-compact';
-    widget.innerHTML =
-      `<div class="cic-compact-title">Geschatte importkosten</div>` +
-      `<table class="cic-compact-table">${rows}</table>`;
+  const widget = document.createElement('div');
+  widget.className = 'cic-compact';
+  widget.innerHTML =
+    `<div class="cic-compact-title">Geschatte importkosten</div>` +
+    `<table class="cic-compact-table">${rows}</table>`;
 
-    // Insert after the price element — try known AS24 selectors first
-    const priceEl =
-      cardEl.querySelector('[data-testid="price"]') ??
-      cardEl.querySelector('[class*="Price"]') ??
-      cardEl.querySelector('[class*="price"]');
-
-    if (priceEl) {
-      priceEl.insertAdjacentElement('afterend', widget);
-    } else {
-      cardEl.appendChild(widget);
-    }
-  }
+  // Altijd onderaan de kaart toevoegen, niet naast de prijs
+  cardEl.appendChild(widget);
+}
 
   root.CIC_Renderer = { injectListingWidget, injectSearchWidget };
 

@@ -99,7 +99,7 @@
           label: "BPM",
           value: bpm,
           unit: "EUR",
-          included: bpm > 0,
+          included: true,
           note:
             bpm > 0
               ? {
