@@ -6,26 +6,12 @@
 
 (function (root) {
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Parses a price string into a number.
-   * Strips superscript footnote characters (¹²³⁰-⁹), trailing " 1" markers,
-   * currency symbols, thousands separators, and whitespace.
-   *
-   * Examples:
-   *   "€\u00a0103.489\u00b9"  → 103489
-   *   "103.489 1"           → 103489
-   *   "103,489"             → 103489
-   */
   function parsePrice(raw) {
     if (!raw) return null;
     const cleaned = raw
-      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, '') // superscript digits
-      .replace(/\s+\d+$/, '')                            // trailing " 1", " 2"
-      .replace(/[^0-9]/g, '');                           // keep digits only
+      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, '')
+      .replace(/\s+\d+$/, '')
+      .replace(/[^0-9]/g, '');
     return cleaned ? parseInt(cleaned, 10) : null;
   }
 
@@ -54,18 +40,15 @@
   }
 
   /**
-   * Scrapes the listing price from the price section only.
-   * Collects all candidate price values within [data-testid="price-section"]
-   * and returns the SMALLEST valid one — this avoids picking up leasing totals
-   * or inflated combined values that sometimes appear in the same block.
+   * Returns the smallest valid price found inside [data-testid="price-section"].
+   * Leaf text nodes only (el.children.length === 0) to avoid double-counting.
    */
   function scrapePrice() {
     const section = document.querySelector('[data-testid="price-section"]');
     if (!section) return null;
 
     const candidates = [];
-    for (const el of section.querySelectorAll('span, p, div, strong, h2, h3')) {
-      // Skip elements that contain child elements with prices to avoid double-counting
+    for (const el of section.querySelectorAll('*')) {
       if (el.children.length > 0) continue;
       const text = el.textContent.trim();
       if (!text || text.length > 20) continue;
@@ -74,7 +57,6 @@
     }
 
     if (!candidates.length) return null;
-    // Return the smallest — leasing/total figures are always larger than the purchase price
     return Math.min(...candidates);
   }
 
@@ -88,9 +70,14 @@
   }
 
   function buildCO2Field(fuelType, euroNormRaw, powerKw, year, co2Scraped) {
-    const estimation = root.CIC_Lookups.estimateCO2({ fuelType, euroNorm: euroNormRaw, powerKw, year });
+    // CIC_Lookups may not be loaded in all contexts — guard gracefully
+    const lookups = root.CIC_Lookups;
+    if (!lookups) {
+      return { value: co2Scraped ?? null, unit: 'g/km', source: 'scraped', method: null, confidence: co2Scraped ? 'scraped' : 'unknown' };
+    }
+    const estimation = lookups.estimateCO2({ fuelType, euroNorm: euroNormRaw, powerKw, year });
     if (co2Scraped && co2Scraped > 0) {
-      root.CIC_Lookups.checkCO2Deviation(co2Scraped, estimation.co2, null);
+      lookups.checkCO2Deviation?.(co2Scraped, estimation.co2, null);
       return { value: co2Scraped, unit: 'g/km', source: 'scraped', method: null, confidence: 'scraped' };
     }
     return {
@@ -102,29 +89,8 @@
     };
   }
 
-  function scrapeLocation() {
-    const candidates = [
-      document.querySelector('[data-testid="seller-info"]'),
-      document.querySelector('[data-testid="vendor-contact"]'),
-      document.querySelector('[class*="SellerInfo"]'),
-      document.querySelector('[class*="dealer-address"]'),
-      document.querySelector('[class*="LocationWithPin"]'),
-    ];
-    for (const el of candidates) {
-      if (!el) continue;
-      const loc = parseLocationText(el.textContent.trim());
-      if (loc) return loc;
-    }
-    for (const el of document.querySelectorAll('address, [class*="location"], [class*="Location"]')) {
-      const loc = parseLocationText(el.textContent.trim());
-      if (loc) return loc;
-    }
-    return { postcode: null, country: null };
-  }
-
   function parseLocationText(text) {
     if (!text) return null;
-    // Country prefix like "DE-86343" (AutoScout24 dealer format)
     const prefixed = text.match(/\b(DE|BE|FR|IT|ES|AT|CH|PL|NL|LU|CZ|HU|RO|PT)[-\s](\d{4,5})\b/);
     if (prefixed) return { postcode: prefixed[2], country: prefixed[1] };
     const de = text.match(/\b(\d{5})\b/);
@@ -132,6 +98,24 @@
     const be = text.match(/\b([1-9]\d{3})\b/);
     if (be && parseInt(be[1], 10) < 9999) return { postcode: be[1], country: 'BE' };
     return null;
+  }
+
+  function scrapeLocation() {
+    const selectors = [
+      '[data-testid="seller-info"]',
+      '[data-testid="vendor-contact"]',
+      '[class*="SellerInfo"]',
+      '[class*="dealer-address"]',
+      '[class*="LocationWithPin"]',
+      'address',
+    ];
+    for (const sel of selectors) {
+      for (const el of document.querySelectorAll(sel)) {
+        const loc = parseLocationText(el.textContent.trim());
+        if (loc) return loc;
+      }
+    }
+    return { postcode: null, country: null };
   }
 
   // ---------------------------------------------------------------------------
@@ -156,7 +140,7 @@
     const location   = scrapeLocation();
 
     const listing = {
-      price:        { value: price,    unit: 'EUR' },
+      price:        { value: price, unit: 'EUR' },
       firstRegDate: firstRegRaw ? { value: firstRegRaw, unit: 'MM/YYYY' } : null,
       fuelType:     { value: fuelType },
       mileage:      mileageRaw ? { value: parseNumber(mileageRaw), unit: 'km' } : null,
@@ -184,10 +168,9 @@
     const results = [];
     for (const card of cards) {
       let price = null;
-      // Only look inside the price element, not the whole card
       const priceEl = card.querySelector('[data-testid="price-label"], [class*="Price"], [class*="price"]');
       const searchIn = priceEl ?? card;
-      for (const el of searchIn.querySelectorAll('span, p, strong')) {
+      for (const el of searchIn.querySelectorAll('*')) {
         if (el.children.length > 0) continue;
         const text = el.textContent.trim();
         if (!text || text.length > 20) continue;
@@ -204,7 +187,7 @@
 
       results.push({
         el:           card,
-        price:        { value: price,   unit: 'EUR' },
+        price:        { value: price, unit: 'EUR' },
         firstRegDate: year ? { value: `01/${year}`, unit: 'MM/YYYY' } : null,
         fuelType:     { value: fuelType },
         mileage:      null,

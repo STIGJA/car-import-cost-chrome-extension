@@ -5,13 +5,23 @@
 (async function () {
   'use strict';
 
-  async function waitForData(scrapeFn, retries = 20, delayMs = 500) {
+  async function waitForListing(scrapeFn, retries = 20, delayMs = 500) {
     for (let i = 0; i < retries; i++) {
       const result = scrapeFn();
-      if (result && (result.price || (Array.isArray(result) && result.length))) return result;
+      if (result && result.price?.value) return result;
       await new Promise((r) => setTimeout(r, delayMs));
     }
-    console.warn('[CarImport] Data niet gevonden na', retries, 'pogingen.');
+    console.warn('[CarImport] Listing data niet gevonden na', retries, 'pogingen.');
+    return null;
+  }
+
+  async function waitForCards(scrapeFn, retries = 20, delayMs = 500) {
+    for (let i = 0; i < retries; i++) {
+      const result = scrapeFn();
+      if (Array.isArray(result) && result.length) return result;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    console.warn('[CarImport] Zoekresultaten niet gevonden na', retries, 'pogingen.');
     return null;
   }
 
@@ -44,16 +54,16 @@
   console.log('[CarImport] Gestart op', host, isListing ? '(advertentie)' : '(zoekresultaten)');
 
   if (isListing) {
-    const listing = await waitForData(() => scraper.scrapeListingPage());
-    if (!listing?.price) return;
+    const listing = await waitForListing(() => scraper.scrapeListingPage());
+    if (!listing) return;
     const result = calc.calculate(listing, settings);
     const anchor = document.querySelector('[data-testid="price-section"]');
     window.CIC_Renderer.injectListingWidget(result, anchor);
     return;
   }
 
-  const cards = await waitForData(() => scraper.scrapeSearchPage());
-  if (!cards?.length) return;
+  const cards = await waitForCards(() => scraper.scrapeSearchPage());
+  if (!cards) return;
 
   for (const listing of cards) {
     const result = calc.calculate(listing, settings);
