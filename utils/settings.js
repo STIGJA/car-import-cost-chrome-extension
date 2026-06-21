@@ -5,6 +5,7 @@
  *   postcode            {string}  Reference postcode (kept for future use)
  *   fixedCosts          {number}  Fixed administrative costs (RDW fees, inspection, etc.)
  *   transportByCountry  {object}  Fixed transport cost per origin country code
+
  */
 
 'use strict';
@@ -25,6 +26,7 @@ export const SETTING_DEFAULTS = {
   postcode:           '',
   fixedCosts:         170,
   transportByCountry: TRANSPORT_DEFAULTS,
+
 };
 
 export function getSettings() {

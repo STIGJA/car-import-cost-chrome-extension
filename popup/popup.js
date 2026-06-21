@@ -33,12 +33,18 @@ const settings = await getSettings();
 const fixedCostsEl  = document.getElementById('fixedCosts');
 fixedCostsEl.value  = settings.fixedCosts ?? SETTING_DEFAULTS.fixedCosts;
 
+
+
 const TRANSPORT_COUNTRIES = ['DE','BE','FR','IT','ES','AT','CH','PL','OTHER'];
 const transportMap = { ...TRANSPORT_DEFAULTS, ...(settings.transportByCountry ?? {}) };
+
+
 
 for (const cc of TRANSPORT_COUNTRIES) {
   const el = document.getElementById(`t-${cc}`);
   if (el) el.value = transportMap[cc] ?? TRANSPORT_DEFAULTS[cc];
+
+
 }
 
 function saveTransport() {
@@ -110,6 +116,8 @@ document.getElementById('calculateBtn').addEventListener('click', () => {
   const vat   = isNew ? Math.round(price * 0.21) : 0;
   const gross = bpmBruto(co2, fuelType);
   const bpm   = bpmNetto(co2, fuelType, ageYears);
+
+
   const total = Math.round(price + vat + bpm + transport + currentFixed);
 
   const rows = [];

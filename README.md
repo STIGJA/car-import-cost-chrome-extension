@@ -40,9 +40,6 @@ EV's zijn volledig vrijgesteld van BPM.
 │   └── scrapers/
 │       └── autoscout24.js      # Listing + zoekpagina scraper
 ├── popup/                      # Popup UI
-├── utils/
-│   ├── calculator.js           # BPM/BTW/invoerrechten
-│   └── settings.js             # chrome.storage wrapper
 └── background/
     └── background.js
 ```

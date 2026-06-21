@@ -93,35 +93,35 @@
    */
   function estimateCO2(specs) {
     const { fuelType, euroNorm, powerKw, year } = specs;
-    if (fuelType === 'electric') return { co2: 0, method: 'elektrisch', confidence: 'exact' };
+    if (fuelType === 'electric') return { co2: 0, method: 'elektrische auto', confidence: 'exact' };
 
     const fuel      = fuelType in EURO_POWER_TABLE ? fuelType : 'petrol';
     const normEuro  = normalizeEuroNorm(euroNorm);
 
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro] && powerKw) {
       const co2 = EURO_POWER_TABLE[fuel][normEuro][powerBracket(powerKw)];
-      return { co2, method: `${normEuro} + ${powerKw}\u00a0kW`, confidence: 'medium' };
+      return { co2, method: 'euronorm en vermogen', confidence: 'medium' };
     }
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro]) {
       const co2 = EURO_POWER_TABLE[fuel][normEuro][2];
-      return { co2, method: normEuro, confidence: 'low' };
+      return { co2, method: 'euronorm', confidence: 'low' };
     }
     if (year && YEAR_FALLBACK[fuel]) {
       const y   = Math.max(2005, Math.min(2024, year));
       const co2 = YEAR_FALLBACK[fuel][y];
-      if (co2) return { co2, method: `bouwjaar ${y}`, confidence: 'low' };
+      if (co2) return { co2, method: 'bouwjaar', confidence: 'low' };
     }
     const fallback = { petrol: 155, diesel: 145, hybrid: 120, electric: 0 };
     return { co2: fallback[fuel] ?? 155, method: 'standaard', confidence: 'very-low' };
   }
 
   /**
-   * Logt een console.warn als pagina-CO2 meer dan 20 g/km of 15% afwijkt van schatting.
+   * Logt een console.warn als pagina-CO2 teveel afwijkt
    */
   function checkCO2Deviation(scraped, estimated, label) {
     const diff = Math.abs(scraped - estimated);
     const pct  = Math.round((diff / scraped) * 100);
-    if (diff >= 20 || pct >= 15) {
+    if (diff >= 15 || pct >= 10) {
       console.warn(
         `[CarImport] CO\u2082-afwijking${label ? ' (' + label + ')' : ''}: ` +
         `pagina ${scraped}\u00a0g/km vs schatting ${estimated}\u00a0g/km ` +
