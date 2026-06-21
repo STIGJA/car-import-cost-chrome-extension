@@ -35,9 +35,7 @@
       "run_at": "document_idle"
     }
   ],
-  "permissions": [
-    "storage"
-  ],
+  "permissions": ["storage"],
   "host_permissions": [
     "*://www.autoscout24.de/*",
     "*://www.autoscout24.nl/*",

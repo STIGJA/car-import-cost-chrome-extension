@@ -116,12 +116,12 @@
   }
 
   /**
-   * Logt een console.warn als pagina-CO2 meer dan 20 g/km of 15% afwijkt van schatting.
+   * Logt een console.warn als pagina-CO2 teveel afwijkt
    */
   function checkCO2Deviation(scraped, estimated, label) {
     const diff = Math.abs(scraped - estimated);
     const pct  = Math.round((diff / scraped) * 100);
-    if (diff >= 20 || pct >= 15) {
+    if (diff >= 15 || pct >= 10) {
       console.warn(
         `[CarImport] CO\u2082-afwijking${label ? ' (' + label + ')' : ''}: ` +
         `pagina ${scraped}\u00a0g/km vs schatting ${estimated}\u00a0g/km ` +

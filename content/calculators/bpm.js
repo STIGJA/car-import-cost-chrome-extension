@@ -1,5 +1,5 @@
 /**
- * utils/bpm.js — Gedeelde BPM-berekeningslogica
+ * content/calculators/bpm.js — Gedeelde BPM-berekeningslogica
  *
  * Laadt als klassiek script (content_scripts in manifest).
  * Zet alles op window.CIC_BPM zodat nl-import.js en popup.js
