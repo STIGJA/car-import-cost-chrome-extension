@@ -24,7 +24,7 @@
         "*://www.autoscout24.fr/*"
       ],
       "js": [
-        "utils/bpm.js",
+        "content/calculators/bpm.js",
         "content/lookups/co2-lookup.js",
         "content/calculators/nl-import.js",
         "content/sites/autoscout24.js",
