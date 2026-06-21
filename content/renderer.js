@@ -1,96 +1,102 @@
 /**
- * renderer.js — Zet een ImportResult om naar HTML en injecteert het in de DOM
+ * renderer.js — Converts an ImportResult into HTML and injects it into the DOM.
  *
- * Weet niets van berekeningen, sites of CO2 — puur een view-laag.
+ * Responsibilities: rendering only.
+ * No calculation logic, no site-specific scraping, no CO2 lookups.
  *
- * Geëxporteerd als:
- *   window.CIC_Renderer.injectListingWidget(importResult, anchorEl)
- *   window.CIC_Renderer.injectSearchBadge(importResult, cardEl)
+ * Exports (via window.CIC_Renderer):
+ *   injectListingWidget(importResult, anchorEl)  — full widget on car detail page
+ *   injectSearchBadge(importResult, cardEl)       — compact badge on search result cards
  */
 
 'use strict';
 
 (function (root) {
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
   const fmt = (n) =>
     new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-  // -------------------------------------------------------------------------
-  // Advertentiepagina — volledig widget
-  // -------------------------------------------------------------------------
+  /**
+   * Builds a single <tr> for the cost breakdown table.
+   * Returns an empty string for line items that are excluded and not the total.
+   */
+  function buildTableRow(item) {
+    if (!item.included && !item.isTotal) return '';
+
+    // Label cell — add warning icon when CO2 value was estimated
+    let labelHtml = item.label;
+    if (item.note?.warning) {
+      labelHtml +=
+        ` <span class="cic-warning-icon" title="${item.note.warning}" aria-label="Estimated value">\u26a0\ufe0f</span>`;
+    }
+
+    // Value cell — add dotted underline when a tooltip with calculation detail is available
+    let valueHtml;
+    if (item.note?.valueTooltip) {
+      valueHtml =
+        `<span class="cic-tooltip-trigger" title="${item.note.valueTooltip}">` +
+        `${fmt(item.value)}</span>`;
+    } else {
+      valueHtml = fmt(item.value);
+    }
+
+    const rowClass = item.isTotal ? ' class="cic-total-row"' : '';
+    return `<tr${rowClass}><td>${labelHtml}</td><td class="cic-val">${valueHtml}</td></tr>`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Listing widget — full cost breakdown on the car detail page
+  // ---------------------------------------------------------------------------
 
   function injectListingWidget(result, anchorEl) {
     if (document.getElementById('cic-listing-widget')) return;
 
-    const rows = result.lineItems.map((item) => {
-      // Overgeslagen posten (bijv. BTW bij gebruikte auto) geheel weglaten
-      if (!item.included && !item.isTotal) return '';
-
-      // Label: waarschuwingsicoon als CO2 geschat is
-      let labelHtml = item.label;
-      if (item.note?.warning) {
-        labelHtml +=
-          ` <span title="${item.note.warning}" ` +
-          `style="cursor:help;" aria-label="Geschatte waarde">\u26a0\ufe0f</span>`;
-      }
-
-      // Waarde-cel: tooltip met CO2-basis
-      let valueHtml;
-      if (item.note?.valueTooltip) {
-        valueHtml =
-          `<span title="${item.note.valueTooltip}" style="cursor:help;text-decoration:underline dotted;">` +
-          `${fmt(item.value)}</span>`;
-      } else {
-        valueHtml = fmt(item.value);
-      }
-
-      const style = item.isTotal
-        ? 'font-weight:700;border-top:1px solid #ff9800;padding-top:4px;'
-        : '';
-
-      return `<tr style="${style}"><td>${labelHtml}</td><td style="text-align:right">${valueHtml}</td></tr>`;
-    }).join('');
+    const rows = result.lineItems.map(buildTableRow).join('');
 
     const widget = document.createElement('div');
     widget.id = 'cic-listing-widget';
-    widget.style.cssText = [
-      'background:#fff3e0', 'border:2px solid #ff9800', 'border-radius:8px',
-      'padding:12px 16px',  'margin:12px 0',            'font-family:sans-serif',
-      'font-size:14px',     'line-height:1.7',
-    ].join(';');
-
     widget.innerHTML = `
-      <div style="font-weight:700;margin-bottom:8px;">\ud83c\uddf3\ud83c\uddf1 Importkosten naar Nederland</div>
-      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+      <div class="cic-header">
+        <span class="cic-flag">\ud83c\uddf3\ud83c\uddf1</span>
+        <span class="cic-title">Import costs to the Netherlands</span>
+      </div>
+      <table class="cic-table">${rows}</table>
     `;
 
     if (anchorEl) anchorEl.insertAdjacentElement('afterend', widget);
     else          document.body.prepend(widget);
   }
 
-  // -------------------------------------------------------------------------
-  // Zoekresultatenpagina — klein badge op kaart
-  // -------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Search badge — compact total shown on each search result card
+  // ---------------------------------------------------------------------------
 
   function injectSearchBadge(result, cardEl) {
     if (cardEl.querySelector('.cic-badge')) return;
 
-    const total = result.lineItems.find((i) => i.isTotal);
+    const total = result.lineItems.find((item) => item.isTotal);
     if (!total) return;
 
     const badge = document.createElement('div');
     badge.className = 'cic-badge';
-    badge.style.cssText = [
-      'background:#ff9800', 'color:#fff',         'border-radius:4px',
-      'padding:2px 8px',    'font-size:12px',      'font-weight:700',
-      'display:inline-block', 'margin-top:4px',
-    ].join(';');
-    badge.textContent = `\ud83c\uddf3\ud83c\uddf1 ${fmt(total.value)}`;
+    badge.innerHTML =
+      `<span class="cic-badge-label">\ud83c\uddf3\ud83c\uddf1 Total NL</span>` +
+      `<span class="cic-badge-value">${fmt(total.value)}</span>`;
 
+    // Insert after the first element that looks like a price (numeric value > 500)
     for (const span of cardEl.querySelectorAll('span')) {
       const val = parseInt(span.textContent.replace(/[^0-9]/g, ''), 10);
-      if (val && val > 500) { span.insertAdjacentElement('afterend', badge); break; }
+      if (val && val > 500) {
+        span.insertAdjacentElement('afterend', badge);
+        break;
+      }
     }
   }
 
   root.CIC_Renderer = { injectListingWidget, injectSearchBadge };
+
 })(window);

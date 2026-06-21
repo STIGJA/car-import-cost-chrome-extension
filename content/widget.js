@@ -1,8 +1,12 @@
 /**
- * Widget injector
+ * widget.js
  *
- * injectListingWidget — groot widget op advertentiepagina, naast de prijs
- * injectSearchWidgets — compact badge per kaart in zoekresultaten
+ * Legacy widget injector — kept for backwards compatibility.
+ * New code should use renderer.js (window.CIC_Renderer) instead.
+ *
+ * Exports:
+ *   injectListingWidget(carData, costs) — full widget on the car detail page
+ *   injectSearchWidgets(cards, settings) — compact badge per card on search pages
  */
 
 import { calculateImportCosts } from '../utils/calculator.js';
@@ -14,7 +18,7 @@ const fmt = (n) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
 // ---------------------------------------------------------------------------
-// Advertentiepagina
+// Car detail page
 // ---------------------------------------------------------------------------
 
 export function injectListingWidget(carData, costs) {
@@ -25,20 +29,20 @@ export function injectListingWidget(carData, costs) {
 
   widget.innerHTML = `
     <div class="cic-header">
-      <span class="cic-flag">🇳🇱</span>
-      <span class="cic-title">Importkosten naar NL</span>
+      <span class="cic-flag">&#x1F1F3;&#x1F1F1;</span>
+      <span class="cic-title">Import costs to the Netherlands</span>
     </div>
     <table class="cic-table">
-      <tr><td>Vraagprijs</td>          <td class="cic-val">${fmt(costs.price)}</td></tr>
-      <tr><td>Invoerrechten (6,5%)</td><td class="cic-val">${fmt(costs.importDuty)}</td></tr>
-      <tr><td>BTW (21%)</td>           <td class="cic-val">${fmt(costs.vat)}</td></tr>
+      <tr><td>Asking price</td>         <td class="cic-val">${fmt(costs.price)}</td></tr>
+      <tr><td>Import duty (6.5%)</td>   <td class="cic-val">${fmt(costs.importDuty)}</td></tr>
+      <tr><td>VAT (21%)</td>            <td class="cic-val">${fmt(costs.vat)}</td></tr>
       ${costs.bpm > 0 ? `<tr><td>BPM</td><td class="cic-val">${fmt(costs.bpm)}</td></tr>` : ''}
       <tr class="cic-total-row">
-        <td>Totaal</td>
+        <td>Total</td>
         <td class="cic-val">${fmt(costs.total)}</td>
       </tr>
     </table>
-    <p class="cic-note">${costs.bpm > 0 ? '* BPM berekend op basis van CO₂ en brandstof.' : '* EV: geen BPM.'}</p>
+    <p class="cic-note">${costs.bpm > 0 ? '* BPM calculated based on CO\u2082 and fuel type.' : '* EV: no BPM applicable.'}</p>
   `;
 
   const anchor =
@@ -50,23 +54,23 @@ export function injectListingWidget(carData, costs) {
 }
 
 // ---------------------------------------------------------------------------
-// Zoekresultatenpagina
+// Search results page
 // ---------------------------------------------------------------------------
 
 export async function injectSearchWidgets(cards, settings) {
   for (const { el, price, year, fuelType, co2 } of cards) {
-    if (el.querySelector('.cic-badge')) continue; // al geïnjecteerd
+    if (el.querySelector('.cic-badge')) continue; // already injected
 
     const costs = calculateImportCosts({ price, year, fuelType, co2 }, settings);
 
     const badge = document.createElement('div');
     badge.className = 'cic-badge';
     badge.innerHTML = `
-      <span class="cic-badge-label">🇳🇱 Totaal</span>
+      <span class="cic-badge-label">&#x1F1F3;&#x1F1F1; Total</span>
       <span class="cic-badge-value">${fmt(costs.total)}</span>
     `;
 
-    // Plak de badge onderaan de kaart, na het prijselement
+    // Append the badge below the price element on the card
     const priceEl = el.querySelector('[data-testid="price"], .cldt-price, [class*="price"]');
     priceEl?.insertAdjacentElement('afterend', badge);
   }

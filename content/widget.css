@@ -1,20 +1,35 @@
 /* ===========================================================
-   Car Import Cost — widget stijlen
-   Prefix: cic-   (voorkomt conflicten met AS24 CSS)
+   Car Import Cost — widget styles
+   Prefix: cic-  (prevents conflicts with host-site CSS)
 
-   Stijl matcht het lichte kaartontwerp van AutoScout24:
-   witte achtergrond, subtiele rand, oranje accentkleur.
+   Design tokens
+   --cic-accent       : primary brand colour
+   --cic-accent-hover : darker shade for borders / emphasis
+   --cic-accent-bg    : very light tint used as badge background
    =========================================================== */
 
-/* --- Listing widget (advertentiepagina) --- */
+:root {
+  --cic-accent:      #1b2d52;
+  --cic-accent-hover:#0f1d38;
+  --cic-accent-bg:   #eef0f5;
+  --cic-text:        #1b1b1b;
+  --cic-text-muted:  #666666;
+  --cic-text-faint:  #999999;
+  --cic-border:      #e0e0e0;
+  --cic-surface:     #ffffff;
+  --cic-radius:      8px;
+  --cic-radius-sm:   5px;
+}
+
+/* --- Listing widget (car detail page) --- */
 
 #cic-listing-widget {
-  font-family: inherit;         /* Neemt het lettertype van AS24 over */
+  font-family: inherit;
   font-size: 14px;
-  background: #ffffff;
-  color: #1b1b1b;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: var(--cic-surface);
+  color: var(--cic-text);
+  border: 1px solid var(--cic-border);
+  border-radius: var(--cic-radius);
   padding: 14px 16px;
   margin: 12px 0;
   max-width: 100%;
@@ -28,12 +43,12 @@
   margin-bottom: 10px;
 }
 
-.cic-flag { font-size: 16px; line-height: 1; }
+.cic-flag  { font-size: 16px; line-height: 1; }
 
 .cic-title {
   font-weight: 700;
   font-size: 14px;
-  color: #1b1b1b;
+  color: var(--cic-text);
 }
 
 .cic-table {
@@ -53,46 +68,55 @@
 .cic-val {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: #1b1b1b;
+  color: var(--cic-text);
 }
 
+/* Total row — accent colour for emphasis */
 .cic-total-row td {
   font-weight: 700;
   font-size: 15px;
-  color: #e5590b;   /* AS24 primaire oranje */
+  color: var(--cic-accent);
   padding-top: 8px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--cic-border);
 }
 
 .cic-note {
   margin-top: 8px;
   font-size: 11px;
-  color: #999;
+  color: var(--cic-text-faint);
   line-height: 1.4;
 }
 
-/* --- Zoekresultaten badge --- */
+/* Tooltip helpers injected by renderer.js */
+.cic-tooltip-trigger {
+  cursor: help;
+  text-decoration: underline dotted;
+}
+
+.cic-warning-icon {
+  cursor: help;
+  margin-left: 2px;
+}
+
+/* --- Search-results badge --- */
 
 .cic-badge {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff7f3;
-  border: 1px solid #f5d5c0;
-  border-radius: 5px;
+  background: var(--cic-accent-bg);
+  border: 1px solid #c5ccd9;
+  border-radius: var(--cic-radius-sm);
   padding: 4px 8px;
   margin-top: 6px;
   font-size: 12px;
   font-family: inherit;
 }
 
-.cic-badge-label {
-  color: #666;
-  font-weight: 500;
-}
+.cic-badge-label { color: var(--cic-text-muted); font-weight: 500; }
 
 .cic-badge-value {
   font-weight: 700;
-  color: #e5590b;
+  color: var(--cic-accent);
   font-variant-numeric: tabular-nums;
 }

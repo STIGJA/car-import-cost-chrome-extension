@@ -1,15 +1,37 @@
+/* ===========================================================
+   Car Import Cost — popup styles
+
+   Design tokens mirror widget.css so both surfaces
+   stay visually consistent.
+   =========================================================== */
+
+:root {
+  --cic-accent:      #1b2d52;
+  --cic-accent-hover:#0f1d38;
+  --cic-accent-tint: rgba(27, 45, 82, 0.08);
+  --cic-text:        #1a1a1a;
+  --cic-text-muted:  #666666;
+  --cic-text-faint:  #888888;
+  --cic-border:      #cccccc;
+  --cic-surface:     #ffffff;
+  --cic-surface-alt: #fafafa;
+  --cic-radius:      4px;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: system-ui, sans-serif;
   font-size: 13px;
   width: 280px;
-  color: #1a1a1a;
-  background: #fff;
+  color: var(--cic-text);
+  background: var(--cic-surface);
 }
 
+/* --- Header + tab bar --- */
+
 header {
-  background: #e65100;
+  background: var(--cic-accent);
   color: #fff;
   padding: 10px 14px 0;
 }
@@ -20,33 +42,35 @@ header h1 {
   margin-bottom: 8px;
 }
 
-.tabs {
-  display: flex;
-  gap: 2px;
-}
+.tabs { display: flex; gap: 2px; }
 
 .tab {
   flex: 1;
   padding: 6px 0;
   font-size: 12px;
   font-weight: 600;
-  background: rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.75);
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.75);
   border: none;
   border-radius: 4px 4px 0 0;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
-.tab.active, .tab:hover {
-  background: #fff;
-  color: #e65100;
+.tab.active,
+.tab:hover {
+  background: var(--cic-surface);
+  color: var(--cic-accent);
 }
+
+/* --- Main content area --- */
 
 main { padding: 12px 14px; }
 
-.tab-panel { display: block; }
+.tab-panel        { display: block; }
 .tab-panel.hidden { display: none; }
+
+/* --- Form labels --- */
 
 label {
   display: block;
@@ -54,47 +78,57 @@ label {
   margin: 10px 0 3px;
   color: #333;
 }
+
 label:first-child { margin-top: 0; }
 
-.unit     { font-weight: 400; color: #666; }
-.optional { font-weight: 400; font-size: 11px; color: #888; }
-.hint     { font-size: 11px; color: #888; margin-top: 4px; line-height: 1.4; }
+.unit     { font-weight: 400; color: var(--cic-text-muted); }
+.optional { font-weight: 400; font-size: 11px; color: var(--cic-text-faint); }
+.hint     { font-size: 11px; color: var(--cic-text-faint); margin-top: 4px; line-height: 1.4; }
 
-.row-inline {
-  display: flex;
-  gap: 6px;
-}
+/* --- Inline row (month + year side by side) --- */
+
+.row-inline        { display: flex; gap: 6px; }
 .row-inline select { flex: 1; }
 .row-inline input  { flex: 0 0 auto; }
 
-input, select {
+/* --- Inputs & selects --- */
+
+input,
+select {
   width: 100%;
   padding: 5px 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: 1px solid var(--cic-border);
+  border-radius: var(--cic-radius);
   font-size: 13px;
-  background: #fafafa;
+  background: var(--cic-surface-alt);
 }
 
-input:focus, select:focus {
-  outline: 2px solid #e65100;
+input:focus,
+select:focus {
+  outline: 2px solid var(--cic-accent);
   outline-offset: 1px;
-  background: #fff;
+  background: var(--cic-surface);
 }
+
+/* --- Calculate button --- */
 
 button#calculateBtn {
   margin-top: 12px;
   width: 100%;
   padding: 7px;
-  background: #e65100;
+  background: var(--cic-accent);
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--cic-radius);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.15s;
 }
-button#calculateBtn:hover { background: #bf360c; }
+
+button#calculateBtn:hover { background: var(--cic-accent-hover); }
+
+/* --- Results panel --- */
 
 .results {
   margin-top: 12px;
@@ -106,7 +140,7 @@ button#calculateBtn:hover { background: #bf360c; }
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #888;
+  color: var(--cic-text-faint);
   margin-bottom: 6px;
 }
 
@@ -116,18 +150,19 @@ button#calculateBtn:hover { background: #bf360c; }
   line-height: 1.6;
 }
 
-#results-table td { padding: 2px 0; }
-#results-table td:last-child { text-align: right; font-weight: 600; }
+#results-table td              { padding: 2px 0; }
+#results-table td:last-child   { text-align: right; font-weight: 600; }
 
+/* Total row — accent top border for visual separation */
 .row-total td {
   font-weight: 700;
-  border-top: 2px solid #e65100;
+  border-top: 2px solid var(--cic-accent);
   padding-top: 5px;
 }
 
 .note {
   font-size: 11px;
-  color: #888;
+  color: var(--cic-text-faint);
   margin-top: 6px;
   line-height: 1.4;
 }
