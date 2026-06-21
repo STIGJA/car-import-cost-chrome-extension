@@ -16,10 +16,9 @@
  * }
  */
 
-'use strict';
+"use strict";
 
 (function (root) {
-
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
@@ -42,28 +41,29 @@
     // a space or directly after the number), and all non-numeric characters
     // except digits.
     const cleaned = raw
-      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, '')  // superscript digits
-      .replace(/\s+\d+$/, '')                              // trailing " 1", " 2" etc.
-      .replace(/[^0-9]/g, '');                             // keep only digits
+      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "") // superscript digits
+      .replace(/\s+\d+$/, "") // trailing " 1", " 2" etc.
+      .replace(/[^0-9]/g, ""); // keep only digits
     return cleaned ? parseInt(cleaned, 10) : null;
   }
 
   function parseNumber(raw) {
     if (!raw) return null;
-    const digits = raw.replace(/[^0-9]/g, '');
+    const digits = raw.replace(/[^0-9]/g, "");
     return digits ? parseInt(digits, 10) : null;
   }
 
   function normalizeFuelType(raw) {
-    const l = (raw ?? '').toLowerCase();
-    if (l.includes('elektr') || l.includes('electric') || l.includes('bev')) return 'electric';
-    if (l.includes('diesel'))                                                  return 'diesel';
-    if (l.includes('hybrid') || l.includes('phev'))                           return 'hybrid';
-    return 'petrol';
+    const l = (raw ?? "").toLowerCase();
+    if (l.includes("elektr") || l.includes("electric") || l.includes("bev"))
+      return "electric";
+    if (l.includes("diesel")) return "diesel";
+    if (l.includes("hybrid") || l.includes("phev")) return "hybrid";
+    return "petrol";
   }
 
   function scrapeDetailValue(labels) {
-    for (const dt of document.querySelectorAll('dt')) {
+    for (const dt of document.querySelectorAll("dt")) {
       const text = dt.textContent.trim().toLowerCase();
       if (labels.some((l) => text.includes(l.toLowerCase()))) {
         return dt.nextElementSibling?.textContent?.trim() ?? null;
@@ -71,26 +71,29 @@
     }
     return null;
   }
-function scrapePrice() {
-  const section = document.querySelector('[data-testid="price-section"]');
-  if (!section) return null;
+  function scrapePrice() {
+    const section = document.querySelector('[data-testid="price-section"]');
+    if (!section) return null;
 
-  for (const span of section.querySelectorAll('span')) {
-    const directText = Array.from(span.childNodes)
-      .filter(n => n.nodeType === Node.TEXT_NODE)
-      .map(n => n.textContent.trim())
-      .join('');
+    for (const span of section.querySelectorAll("span")) {
+      const directText = Array.from(span.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent.trim())
+        .join("");
 
-    if (!directText) continue;
+      if (!directText) continue;
 
-    const isPriceOnly = /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(directText);
-    if (!isPriceOnly) continue;
+      const isPriceOnly =
+        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
+          directText,
+        );
+      if (!isPriceOnly) continue;
 
-    const val = parsePrice(directText);
-    if (val && val > 500 && val < 10_000_000) return val;
+      const val = parsePrice(directText);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+    return null;
   }
-  return null;
-}
 
   function parsePowerKw(raw) {
     if (!raw) return null;
@@ -102,16 +105,27 @@ function scrapePrice() {
   }
 
   function buildCO2Field(fuelType, euroNormRaw, powerKw, year, co2Scraped) {
-    const estimation = root.CIC_Lookups.estimateCO2({ fuelType, euroNorm: euroNormRaw, powerKw, year });
+    const estimation = root.CIC_Lookups.estimateCO2({
+      fuelType,
+      euroNorm: euroNormRaw,
+      powerKw,
+      year,
+    });
     if (co2Scraped && co2Scraped > 0) {
       root.CIC_Lookups.checkCO2Deviation(co2Scraped, estimation.co2, null);
-      return { value: co2Scraped, unit: 'g/km', source: 'scraped', method: null, confidence: 'scraped' };
+      return {
+        value: co2Scraped,
+        unit: "g/km",
+        source: "scraped",
+        method: null,
+        confidence: "scraped",
+      };
     }
     return {
-      value:      estimation.co2,
-      unit:       'g/km',
-      source:     'estimated',
-      method:     estimation.method,
+      value: estimation.co2,
+      unit: "g/km",
+      source: "estimated",
+      method: estimation.method,
       confidence: estimation.confidence,
     };
   }
@@ -129,7 +143,9 @@ function scrapePrice() {
       const loc = parseLocationText(el.textContent.trim());
       if (loc) return loc;
     }
-    for (const el of document.querySelectorAll('address, [class*="location"], [class*="Location"]')) {
+    for (const el of document.querySelectorAll(
+      'address, [class*="location"], [class*="Location"]',
+    )) {
       const loc = parseLocationText(el.textContent.trim());
       if (loc) return loc;
     }
@@ -139,9 +155,10 @@ function scrapePrice() {
   function parseLocationText(text) {
     if (!text) return null;
     const de = text.match(/\b(\d{5})\b/);
-    if (de) return { postcode: de[1], country: 'DE' };
+    if (de) return { postcode: de[1], country: "DE" };
     const be = text.match(/\b([1-9]\d{3})\b/);
-    if (be && parseInt(be[1], 10) < 9999) return { postcode: be[1], country: 'BE' };
+    if (be && parseInt(be[1], 10) < 9999)
+      return { postcode: be[1], country: "BE" };
     return null;
   }
 
@@ -153,32 +170,68 @@ function scrapePrice() {
     const price = scrapePrice();
     if (!price) return null;
 
-    const firstRegRaw = scrapeDetailValue(['Erstzulassung', 'First registration', 'Eerste registratie', '1\u00e8re mise en circulation']);
-    const fuelRaw     = scrapeDetailValue(['Kraftstoff', 'Fuel type', 'Brandstof', 'Carburant']) ?? '';
-    const co2Raw      = scrapeDetailValue(['CO2-Emissionen', 'CO2 emissions', 'CO2-uitstoot', '\u00c9missions CO2', 'CO\u2082']);
-    const powerRaw    = scrapeDetailValue(['Leistung', 'Power', 'Vermogen', 'Puissance']);
-    const euroRaw     = scrapeDetailValue(['Schadstoffklasse', 'Emission class', 'Emissieklasse', 'Classe d\u2019\u00e9mission', 'Euro']);
-    const mileageRaw  = scrapeDetailValue(['Kilometerstand', 'Mileage', 'Kilom\u00e9trage']);
+    const firstRegRaw = scrapeDetailValue([
+      "Erstzulassung",
+      "First registration",
+      "Eerste registratie",
+      "1\u00e8re mise en circulation",
+    ]);
+    const fuelRaw =
+      scrapeDetailValue([
+        "Kraftstoff",
+        "Fuel type",
+        "Brandstof",
+        "Carburant",
+      ]) ?? "";
+    const co2Raw = scrapeDetailValue([
+      "CO2-Emissionen",
+      "CO2 emissions",
+      "CO2-uitstoot",
+      "\u00c9missions CO2",
+      "CO\u2082",
+    ]);
+    const powerRaw = scrapeDetailValue([
+      "Leistung",
+      "Power",
+      "Vermogen",
+      "Puissance",
+    ]);
+    const euroRaw = scrapeDetailValue([
+      "Schadstoffklasse",
+      "Emission class",
+      "Emissieklasse",
+      "Classe d\u2019\u00e9mission",
+      "Euro",
+    ]);
+    const mileageRaw = scrapeDetailValue([
+      "Kilometerstand",
+      "Mileage",
+      "Kilom\u00e9trage",
+    ]);
 
-    const fuelType   = normalizeFuelType(fuelRaw);
-    const powerKw    = parsePowerKw(powerRaw);
+    const fuelType = normalizeFuelType(fuelRaw);
+    const powerKw = parsePowerKw(powerRaw);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
-    const year       = firstRegRaw ? parseInt(firstRegRaw.match(/\d{4}/)?.[0]) : null;
-    const location   = scrapeLocation();
+    const year = firstRegRaw ? parseInt(firstRegRaw.match(/\d{4}/)?.[0]) : null;
+    const location = scrapeLocation();
 
     const listing = {
-      price:        { value: price,    unit: 'EUR' },
-      firstRegDate: firstRegRaw ? { value: firstRegRaw, unit: 'MM/YYYY' } : null,
-      fuelType:     { value: fuelType },
-      mileage:      mileageRaw ? { value: parseNumber(mileageRaw), unit: 'km' } : null,
-      powerKw:      powerKw    ? { value: powerKw, unit: 'kW' }              : null,
-      euroNorm:     euroRaw    ? { value: euroRaw }                           : null,
-      co2:          buildCO2Field(fuelType, euroRaw, powerKw, year, co2Scraped),
-      postcode:     location.postcode,
-      country:      location.country,
+      price: { value: price, unit: "EUR" },
+      firstRegDate: firstRegRaw
+        ? { value: firstRegRaw, unit: "MM/YYYY" }
+        : null,
+      fuelType: { value: fuelType },
+      mileage: mileageRaw
+        ? { value: parseNumber(mileageRaw), unit: "km" }
+        : null,
+      powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
+      euroNorm: euroRaw ? { value: euroRaw } : null,
+      co2: buildCO2Field(fuelType, euroRaw, powerKw, year, co2Scraped),
+      postcode: location.postcode,
+      country: location.country,
     };
 
-    console.log('[CarImport] ListingInfo:', listing);
+    console.log("[CarImport] ListingInfo:", listing);
     return listing;
   }
 
@@ -188,7 +241,7 @@ function scrapePrice() {
 
   function scrapeSearchPage() {
     const cards = document.querySelectorAll(
-      'article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]'
+      'article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
     );
     if (!cards.length) return null;
 
@@ -196,32 +249,35 @@ function scrapePrice() {
     for (const card of cards) {
       // Price: look for the first element that contains a plausible price
       let price = null;
-      for (const el of card.querySelectorAll('span, p, div, strong')) {
+      for (const el of card.querySelectorAll("span, p, div, strong")) {
         const text = el.textContent.trim();
         if (text.length < 25 && /[\u20ac0-9]/.test(text)) {
           const val = parsePrice(text);
-          if (val && val > 500) { price = val; break; }
+          if (val && val > 500) {
+            price = val;
+            break;
+          }
         }
       }
       if (!price) continue;
 
-      const allText  = card.textContent;
-      const yearM    = allText.match(/(19|20)\d{2}/);
-      const year     = yearM ? parseInt(yearM[0], 10) : null;
+      const allText = card.textContent;
+      const yearM = allText.match(/(19|20)\d{2}/);
+      const year = yearM ? parseInt(yearM[0], 10) : null;
       const fuelType = normalizeFuelType(allText);
-      const loc      = parseLocationText(allText);
+      const loc = parseLocationText(allText);
 
       results.push({
-        el:           card,
-        price:        { value: price,   unit: 'EUR' },
-        firstRegDate: year ? { value: `01/${year}`, unit: 'MM/YYYY' } : null,
-        fuelType:     { value: fuelType },
-        mileage:      null,
-        powerKw:      null,
-        euroNorm:     null,
-        co2:          buildCO2Field(fuelType, null, null, year, null),
-        postcode:     loc?.postcode ?? null,
-        country:      loc?.country  ?? 'DE',
+        el: card,
+        price: { value: price, unit: "EUR" },
+        firstRegDate: year ? { value: `01/${year}`, unit: "MM/YYYY" } : null,
+        fuelType: { value: fuelType },
+        mileage: null,
+        powerKw: null,
+        euroNorm: null,
+        co2: buildCO2Field(fuelType, null, null, year, null),
+        postcode: loc?.postcode ?? null,
+        country: loc?.country ?? "DE",
       });
     }
     return results.length ? results : null;
