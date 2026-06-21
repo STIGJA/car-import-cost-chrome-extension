@@ -93,23 +93,23 @@
    */
   function estimateCO2(specs) {
     const { fuelType, euroNorm, powerKw, year } = specs;
-    if (fuelType === 'electric') return { co2: 0, method: 'elektrisch', confidence: 'exact' };
+    if (fuelType === 'electric') return { co2: 0, method: 'elektrische auto', confidence: 'exact' };
 
     const fuel      = fuelType in EURO_POWER_TABLE ? fuelType : 'petrol';
     const normEuro  = normalizeEuroNorm(euroNorm);
 
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro] && powerKw) {
       const co2 = EURO_POWER_TABLE[fuel][normEuro][powerBracket(powerKw)];
-      return { co2, method: `${normEuro} + ${powerKw}\u00a0kW`, confidence: 'medium' };
+      return { co2, method: 'euronorm en vermogen', confidence: 'medium' };
     }
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro]) {
       const co2 = EURO_POWER_TABLE[fuel][normEuro][2];
-      return { co2, method: normEuro, confidence: 'low' };
+      return { co2, method: 'euronorm', confidence: 'low' };
     }
     if (year && YEAR_FALLBACK[fuel]) {
       const y   = Math.max(2005, Math.min(2024, year));
       const co2 = YEAR_FALLBACK[fuel][y];
-      if (co2) return { co2, method: `bouwjaar ${y}`, confidence: 'low' };
+      if (co2) return { co2, method: 'bouwjaar', confidence: 'low' };
     }
     const fallback = { petrol: 155, diesel: 145, hybrid: 120, electric: 0 };
     return { co2: fallback[fuel] ?? 155, method: 'standaard', confidence: 'very-low' };
