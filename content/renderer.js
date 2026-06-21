@@ -13,6 +13,11 @@
   const fmt = (n) =>
     new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
+  /** Rond af op dichtstbijzijnde veelvoud van 100 */
+  function roundHundred(n) {
+    return Math.round(n / 100) * 100;
+  }
+
   // ---------------------------------------------------------------------------
   // Listing widget — full cost breakdown
   // ---------------------------------------------------------------------------
@@ -58,7 +63,6 @@
   function buildCompactRow(item) {
     if (!item.included && !item.isTotal) return '';
 
-    // Op de zoekpagina: geen gevarendriehoek, maar een tekstuele hint voor BPM-schattingen
     let labelHtml;
     if (item.note?.warning) {
       labelHtml = `${item.label} <span class="cic-compact-estimated">geschat</span>`;
@@ -66,7 +70,13 @@
       labelHtml = item.label;
     }
 
-    const valueHtml = fmt(item.value);
+    // BPM op zoekpagina: afgerond op €100 met ~ prefix
+    let valueHtml;
+    if (item.key === 'bpm' && item.note?.warning) {
+      valueHtml = `~${fmt(roundHundred(item.value))}`;
+    } else {
+      valueHtml = fmt(item.value);
+    }
 
     const cls = item.isTotal ? ' class="cic-compact-total"' : '';
     return `<tr${cls}><td>${labelHtml}</td><td>${valueHtml}</td></tr>`;

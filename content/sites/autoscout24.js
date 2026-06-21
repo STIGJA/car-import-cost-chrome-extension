@@ -38,10 +38,35 @@
     return digits ? parseInt(digits, 10) : null;
   }
 
-  function normalizeFuelType(raw) {
+  /**
+   * Bepaalt brandstoftype uit een string.
+   *
+   * Op de zoekpagina wordt allText (hele kaart) meegegeven, maar de omschrijving
+   * kan woorden als "Elektrische Sitzeinstellung" bevatten die niets met het
+   * brandstoftype te maken hebben.
+   *
+   * Strategie:
+   *  1. Probeer een specifiek brandstof-element te lezen (data-testid of class).
+   *  2. Val terug op de volledige tekst, maar pas dan alleen op duidelijke
+   *     woorden die als zelfstandig token staan (bijv. "Diesel" als woord,
+   *     niet als onderdeel van "Dieselpartikelfilter").
+   *  3. "elektrisch" / "electric" / "BEV" als zelfstandige term, NIET als
+   *     onderdeel van bijv. "elektrische stoelverstelling".
+   */
+  function normalizeFuelType(raw, fuelEl) {
+    // Eerst: specifiek element (meest betrouwbaar)
+    if (fuelEl) {
+      const t = fuelEl.textContent.trim().toLowerCase();
+      if (t.includes("elektr") || t.includes("electric") || t.includes("bev")) return "electric";
+      if (t.includes("diesel")) return "diesel";
+      if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
+    }
+    // Fallback op vrije tekst — gebruik woordgrens-matching voor elektrisch
     const l = (raw ?? "").toLowerCase();
-    if (l.includes("elektr") || l.includes("electric") || l.includes("bev"))
-      return "electric";
+    // Elektrisch: alleen als zelfstandig woord/afkorting, NIET als bijvoeglijk naamwoord
+    if (/\belectric\b|\bbev\b|\bev\b/.test(l)) return "electric";
+    // "Elektro" (Duits voor elektrisch rijden) wel, "elektrische" (bijv. stoel) niet
+    if (/\belektro\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
     if (l.includes("hybrid") || l.includes("phev")) return "hybrid";
     return "petrol";
@@ -179,7 +204,8 @@
     ]);
     const mileageRaw = scrapeDetailValue(["Kilometerstand", "Mileage", "Kilom\u00e9trage"]);
 
-    const fuelType = normalizeFuelType(fuelRaw);
+    // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
+    const fuelType = normalizeFuelType(fuelRaw, null);
     const powerKw = parsePowerKw(powerRaw);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
     const year = firstRegRaw ? parseInt(firstRegRaw.match(/\d{4}/)?.[0]) : null;
@@ -248,9 +274,15 @@
       const yearM = allText.match(/(19|20)\d{2}/);
       const year = yearM ? parseInt(yearM[0], 10) : null;
 
-      const fuelType = normalizeFuelType(allText);
+      // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden
+      const fuelEl =
+        card.querySelector('[data-testid="listing-item-fuel-type"]') ??
+        card.querySelector('[data-testid="fuel-type"]') ??
+        card.querySelector('[class*="FuelType"]') ??
+        card.querySelector('[class*="fuel"]');
+      const fuelType = normalizeFuelType(allText, fuelEl);
 
-      // Vermogen parsen uit kaart-tekst voor betere CO2 schatting
+      // Vermogen parsen uit kaart voor betere CO2 schatting
       const powerEl =
         card.querySelector('[data-testid="listing-item-power"]') ??
         card.querySelector('[class*="Power"]') ??
