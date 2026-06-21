@@ -63,8 +63,7 @@
     const transport = getTransportCost(carCountry, settings.transportByCountry);
 
     const co2 = listing.co2.value ?? estimateCO2(fuelType, listing.year?.value);
-    const co2Estimated =
-      listing.co2.source === "estimated" || listing.co2.value == null;
+    const co2Estimated = listing.co2.source === "estimated" || listing.co2.value == null;
     const co2Method = listing.co2.method ?? null;
 
     const months = ageMonthsFrom(firstReg);
@@ -73,8 +72,13 @@
 
     const vat = isNew ? Math.round(price * 0.21) : 0;
     const gross = bpmBruto(co2, fuelType);
-    const bpm = bpmNetto(co2, fuelType, years);
-    const total = Math.round(price + vat + bpm + transport + fixedCosts);
+    const bpmExact = bpmNetto(co2, fuelType, years);
+
+    // Als CO2 geschat is: afronden op dichtstbijzijnde €100 en ~ prefix tonen
+    const bpmDisplay = co2Estimated ? Math.round(bpmExact / 100) * 100 : bpmExact;
+    const bpmApprox  = co2Estimated;
+
+    const total = Math.round(price + vat + bpmExact + transport + fixedCosts);
 
     return {
       settings: { country: { value: "NL", label: "Bestemmingsland" } },
@@ -97,11 +101,12 @@
         {
           key: "bpm",
           label: "BPM",
-          value: bpm,
+          value: bpmDisplay,
+          approx: bpmApprox,
           unit: "EUR",
           included: true,
           note:
-            bpm > 0
+            bpmExact > 0
               ? {
                   valueTooltip: `o.b.v. ${co2}\u00a0g/km CO\u2082 (bruto \u20ac${gross.toLocaleString("nl-NL")})`,
                   warning: co2Estimated

@@ -117,3 +117,9 @@
   border-top: 1px solid #c8c8c8;
   padding-top: 5px;
 }
+
+.cic-compact-estimated {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+}

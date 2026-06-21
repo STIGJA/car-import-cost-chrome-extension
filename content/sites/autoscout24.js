@@ -23,27 +23,12 @@
   // Helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Parses a price string into a number.
-   * Strips everything that is not a digit, including superscript footnotes
-   * like the ¹ character (U+00B9) and trailing \u2060 word-joiners that
-   * AutoScout24 appends to prices.
-   *
-   * Examples that must parse correctly:
-   *   "\u20ac\u00a0103.489\u00b9"  → 103489
-   *   "103.489 1"              → 103489
-   *   "103,489"                → 103489
-   */
   function parsePrice(raw) {
     if (!raw) return null;
-    // Remove superscript digits (\u00b9 \u00b2 \u00b3 \u2070-\u2079),
-    // regular trailing digits that are footnote markers (single digit after
-    // a space or directly after the number), and all non-numeric characters
-    // except digits.
     const cleaned = raw
-      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "") // superscript digits
-      .replace(/\s+\d+$/, "") // trailing " 1", " 2" etc.
-      .replace(/[^0-9]/g, ""); // keep only digits
+      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "")
+      .replace(/\s+\d+$/, "")
+      .replace(/[^0-9]/g, "");
     return cleaned ? parseInt(cleaned, 10) : null;
   }
 
@@ -53,10 +38,35 @@
     return digits ? parseInt(digits, 10) : null;
   }
 
-  function normalizeFuelType(raw) {
+  /**
+   * Bepaalt brandstoftype uit een string.
+   *
+   * Op de zoekpagina wordt allText (hele kaart) meegegeven, maar de omschrijving
+   * kan woorden als "Elektrische Sitzeinstellung" bevatten die niets met het
+   * brandstoftype te maken hebben.
+   *
+   * Strategie:
+   *  1. Probeer een specifiek brandstof-element te lezen (data-testid of class).
+   *  2. Val terug op de volledige tekst, maar pas dan alleen op duidelijke
+   *     woorden die als zelfstandig token staan (bijv. "Diesel" als woord,
+   *     niet als onderdeel van "Dieselpartikelfilter").
+   *  3. "elektrisch" / "electric" / "BEV" als zelfstandige term, NIET als
+   *     onderdeel van bijv. "elektrische stoelverstelling".
+   */
+  function normalizeFuelType(raw, fuelEl) {
+    // Eerst: specifiek element (meest betrouwbaar)
+    if (fuelEl) {
+      const t = fuelEl.textContent.trim().toLowerCase();
+      if (t.includes("elektr") || t.includes("electric") || t.includes("bev")) return "electric";
+      if (t.includes("diesel")) return "diesel";
+      if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
+    }
+    // Fallback op vrije tekst — gebruik woordgrens-matching voor elektrisch
     const l = (raw ?? "").toLowerCase();
-    if (l.includes("elektr") || l.includes("electric") || l.includes("bev"))
-      return "electric";
+    // Elektrisch: alleen als zelfstandig woord/afkorting, NIET als bijvoeglijk naamwoord
+    if (/\belectric\b|\bbev\b|\bev\b/.test(l)) return "electric";
+    // "Elektro" (Duits voor elektrisch rijden) wel, "elektrische" (bijv. stoel) niet
+    if (/\belektro\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
     if (l.includes("hybrid") || l.includes("phev")) return "hybrid";
     return "petrol";
@@ -71,6 +81,7 @@
     }
     return null;
   }
+
   function scrapePrice() {
     const section = document.querySelector('[data-testid="price-section"]');
     if (!section) return null;
@@ -84,9 +95,7 @@
       if (!directText) continue;
 
       const isPriceOnly =
-        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
-          directText,
-        );
+        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(directText);
       if (!isPriceOnly) continue;
 
       const val = parsePrice(directText);
@@ -177,12 +186,7 @@
       "1\u00e8re mise en circulation",
     ]);
     const fuelRaw =
-      scrapeDetailValue([
-        "Kraftstoff",
-        "Fuel type",
-        "Brandstof",
-        "Carburant",
-      ]) ?? "";
+      scrapeDetailValue(["Kraftstoff", "Fuel type", "Brandstof", "Carburant"]) ?? "";
     const co2Raw = scrapeDetailValue([
       "CO2-Emissionen",
       "CO2 emissions",
@@ -190,12 +194,7 @@
       "\u00c9missions CO2",
       "CO\u2082",
     ]);
-    const powerRaw = scrapeDetailValue([
-      "Leistung",
-      "Power",
-      "Vermogen",
-      "Puissance",
-    ]);
+    const powerRaw = scrapeDetailValue(["Leistung", "Power", "Vermogen", "Puissance"]);
     const euroRaw = scrapeDetailValue([
       "Schadstoffklasse",
       "Emission class",
@@ -203,13 +202,10 @@
       "Classe d\u2019\u00e9mission",
       "Euro",
     ]);
-    const mileageRaw = scrapeDetailValue([
-      "Kilometerstand",
-      "Mileage",
-      "Kilom\u00e9trage",
-    ]);
+    const mileageRaw = scrapeDetailValue(["Kilometerstand", "Mileage", "Kilom\u00e9trage"]);
 
-    const fuelType = normalizeFuelType(fuelRaw);
+    // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
+    const fuelType = normalizeFuelType(fuelRaw, null);
     const powerKw = parsePowerKw(powerRaw);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
     const year = firstRegRaw ? parseInt(firstRegRaw.match(/\d{4}/)?.[0]) : null;
@@ -217,13 +213,9 @@
 
     const listing = {
       price: { value: price, unit: "EUR" },
-      firstRegDate: firstRegRaw
-        ? { value: firstRegRaw, unit: "MM/YYYY" }
-        : null,
+      firstRegDate: firstRegRaw ? { value: firstRegRaw, unit: "MM/YYYY" } : null,
       fuelType: { value: fuelType },
-      mileage: mileageRaw
-        ? { value: parseNumber(mileageRaw), unit: "km" }
-        : null,
+      mileage: mileageRaw ? { value: parseNumber(mileageRaw), unit: "km" } : null,
       powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
       euroNorm: euroRaw ? { value: euroRaw } : null,
       co2: buildCO2Field(fuelType, euroRaw, powerKw, year, co2Scraped),
@@ -239,6 +231,33 @@
   // Search results page
   // ---------------------------------------------------------------------------
 
+  function scrapePriceFromCard(card) {
+    const priceEl =
+      card.querySelector('[data-testid="price"]') ??
+      card.querySelector('[data-testid="listing-item-price"]') ??
+      card.querySelector('[data-testid="regular-price"]') ??
+      card.querySelector('[class*="Price__value"]') ??
+      card.querySelector('[class*="PriceInfo"]');
+
+    if (priceEl) {
+      const directText = Array.from(priceEl.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent.trim())
+        .join("");
+      const val = parsePrice(directText || priceEl.textContent);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+
+    for (const el of card.querySelectorAll("span, strong, p")) {
+      const text = el.textContent.trim();
+      if (!/[\u20ac]/.test(text)) continue;
+      if (text.length > 30) continue;
+      const val = parsePrice(text);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+    return null;
+  }
+
   function scrapeSearchPage() {
     const cards = document.querySelectorAll(
       'article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
@@ -247,24 +266,29 @@
 
     const results = [];
     for (const card of cards) {
-      // Price: look for the first element that contains a plausible price
-      let price = null;
-      for (const el of card.querySelectorAll("span, p, div, strong")) {
-        const text = el.textContent.trim();
-        if (text.length < 25 && /[\u20ac0-9]/.test(text)) {
-          const val = parsePrice(text);
-          if (val && val > 500) {
-            price = val;
-            break;
-          }
-        }
-      }
+      const price = scrapePriceFromCard(card);
       if (!price) continue;
 
       const allText = card.textContent;
+
       const yearM = allText.match(/(19|20)\d{2}/);
       const year = yearM ? parseInt(yearM[0], 10) : null;
-      const fuelType = normalizeFuelType(allText);
+
+      // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden
+      const fuelEl =
+        card.querySelector('[data-testid="listing-item-fuel-type"]') ??
+        card.querySelector('[data-testid="fuel-type"]') ??
+        card.querySelector('[class*="FuelType"]') ??
+        card.querySelector('[class*="fuel"]');
+      const fuelType = normalizeFuelType(allText, fuelEl);
+
+      // Vermogen parsen uit kaart voor betere CO2 schatting
+      const powerEl =
+        card.querySelector('[data-testid="listing-item-power"]') ??
+        card.querySelector('[class*="Power"]') ??
+        card.querySelector('[class*="power"]');
+      const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
+
       const loc = parseLocationText(allText);
 
       results.push({
@@ -273,9 +297,9 @@
         firstRegDate: year ? { value: `01/${year}`, unit: "MM/YYYY" } : null,
         fuelType: { value: fuelType },
         mileage: null,
-        powerKw: null,
+        powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
         euroNorm: null,
-        co2: buildCO2Field(fuelType, null, null, year, null),
+        co2: buildCO2Field(fuelType, null, powerKw, year, null),
         postcode: loc?.postcode ?? null,
         country: loc?.country ?? "DE",
       });
