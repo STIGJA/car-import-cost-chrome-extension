@@ -27,7 +27,7 @@
         "content/calculators/bpm.js",
         "content/lookups/co2-lookup.js",
         "content/calculators/nl-import.js",
-        "content/sites/autoscout24.js",
+        "content/scrapers/autoscout24.js",
         "content/renderer.js",
         "content/content.js"
       ],
