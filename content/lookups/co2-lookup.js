@@ -64,6 +64,18 @@
     electric:{},
   };
 
+  // Euronorm afleiden uit bouwjaar (meest waarschijnlijke norm per introductiejaar)
+  function inferEuroNormFromYear(year) {
+    if (!year) return null;
+    if (year >= 2021) return 'euro6d';
+    if (year >= 2019) return 'euro6d-temp';
+    if (year >= 2017) return 'euro6c';
+    if (year >= 2015) return 'euro6b';
+    if (year >= 2011) return 'euro5';
+    if (year >= 2006) return 'euro4';
+    return 'euro3';
+  }
+
   function powerBracket(kw) {
     if (!kw || kw < 75) return 0;
     if (kw < 100)       return 1;
@@ -95,22 +107,39 @@
     const { fuelType, euroNorm, powerKw, year } = specs;
     if (fuelType === 'electric') return { co2: 0, method: 'elektrische auto', confidence: 'exact' };
 
-    const fuel      = fuelType in EURO_POWER_TABLE ? fuelType : 'petrol';
-    const normEuro  = normalizeEuroNorm(euroNorm);
+    const fuel     = fuelType in EURO_POWER_TABLE ? fuelType : 'petrol';
+    const normEuro = normalizeEuroNorm(euroNorm);
 
+    // 1. Euronorm + vermogen → meest nauwkeurig
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro] && powerKw) {
       const co2 = EURO_POWER_TABLE[fuel][normEuro][powerBracket(powerKw)];
       return { co2, method: 'euronorm en vermogen', confidence: 'medium' };
     }
+
+    // 2. Alleen euronorm → middelste bracket als default
     if (normEuro && EURO_POWER_TABLE[fuel][normEuro]) {
       const co2 = EURO_POWER_TABLE[fuel][normEuro][2];
       return { co2, method: 'euronorm', confidence: 'low' };
     }
+
+    // 3. Vermogen + bouwjaar → euronorm afleiden uit jaar, dan power bracket toepassen
+    if (powerKw && year) {
+      const inferredNorm = inferEuroNormFromYear(year);
+      const table = EURO_POWER_TABLE[fuel][inferredNorm];
+      if (table) {
+        const co2 = table[powerBracket(powerKw)];
+        return { co2, method: 'bouwjaar + vermogen', confidence: 'low' };
+      }
+    }
+
+    // 4. Alleen bouwjaar → vlootgemiddelde
     if (year && YEAR_FALLBACK[fuel]) {
       const y   = Math.max(2005, Math.min(2024, year));
       const co2 = YEAR_FALLBACK[fuel][y];
       if (co2) return { co2, method: 'bouwjaar', confidence: 'low' };
     }
+
+    // 5. Absolute fallback
     const fallback = { petrol: 155, diesel: 145, hybrid: 120, electric: 0 };
     return { co2: fallback[fuel] ?? 155, method: 'standaard', confidence: 'very-low' };
   }
