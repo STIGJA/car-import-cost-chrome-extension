@@ -62,7 +62,7 @@
 
     let labelHtml;
     if (item.note?.warning) {
-      labelHtml = `${item.label} <span class="cic-compact-estimated">geschat</span>`;
+      labelHtml = `${item.label} <span class="cic-compact-estimated">geschat, klik op de advertentie voor een betere schatting</span>`;
     } else {
       labelHtml = item.label;
     }
@@ -83,8 +83,7 @@
     widget.className = 'cic-compact';
     widget.innerHTML =
       `<div class="cic-compact-title">Geschatte importkosten</div>` +
-      `<table class="cic-compact-table">${rows}</table>` +
-      `<div class="cic-compact-disclaimer">Klik op de advertentie voor een betere BPM schatting</div>`;
+      `<table class="cic-compact-table">${rows}</table>`
 
     cardEl.appendChild(widget);
   }
