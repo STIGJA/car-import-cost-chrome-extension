@@ -115,14 +115,14 @@
           label: "Transport",
           value: transport,
           unit: "EUR",
-          included: true,
+          included: transport > 0,
         },
         {
           key: "fixedCosts",
           label: "Vaste kosten (RDW etc.)",
           value: fixedCosts,
           unit: "EUR",
-          included: true,
+          included: fixedCosts > 0,
         },
         {
           key: "total",
