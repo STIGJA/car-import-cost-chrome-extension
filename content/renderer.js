@@ -55,38 +55,37 @@
   // Compact search widget
   // ---------------------------------------------------------------------------
 
-function buildCompactRow(item) {
-  if (!item.included && !item.isTotal) return '';
+  function buildCompactRow(item) {
+    if (!item.included && !item.isTotal) return '';
 
-  let labelHtml = item.label;
-  if (item.note?.warning) {
-    labelHtml += ` <span class="cic-warn" title="${item.note.warning}">&#x26A0;&#xFE0F;</span>`;
+    // Op de zoekpagina: geen gevarendriehoek, maar een tekstuele hint voor BPM-schattingen
+    let labelHtml;
+    if (item.note?.warning) {
+      labelHtml = `${item.label} <span class="cic-compact-estimated">geschat</span>`;
+    } else {
+      labelHtml = item.label;
+    }
+
+    const valueHtml = fmt(item.value);
+
+    const cls = item.isTotal ? ' class="cic-compact-total"' : '';
+    return `<tr${cls}><td>${labelHtml}</td><td>${valueHtml}</td></tr>`;
   }
 
-  let valueHtml = fmt(item.value);
-  if (item.note?.valueTooltip) {
-    valueHtml = `<span class="cic-tip" title="${item.note.valueTooltip}">${valueHtml}</span>`;
-  }
+  function injectSearchWidget(result, cardEl) {
+    if (!cardEl || cardEl.querySelector('.cic-compact')) return;
 
-  const cls = item.isTotal ? ' class="cic-compact-total"' : '';
-  return `<tr${cls}><td>${labelHtml}</td><td>${valueHtml}</td></tr>`;
-}
+    const rows = result.lineItems.map(buildCompactRow).join('');
 
-function injectSearchWidget(result, cardEl) {
-  if (!cardEl || cardEl.querySelector('.cic-compact')) return;
-
-  const rows = result.lineItems.map(buildCompactRow).join('');
-
-  const widget = document.createElement('div');
-  widget.className = 'cic-compact';
-  widget.innerHTML =
-    `<div class="cic-compact-title">Geschatte importkosten</div>` +
-    `<table class="cic-compact-table">${rows}</table>`;
+    const widget = document.createElement('div');
+    widget.className = 'cic-compact';
+    widget.innerHTML =
+      `<div class="cic-compact-title">Geschatte importkosten</div>` +
+      `<table class="cic-compact-table">${rows}</table>` +
+      `<div class="cic-compact-disclaimer">Klik op de advertentie voor een betere BPM schatting</div>`;
 
     cardEl.appendChild(widget);
-    
-    widget.addEventListener('click', (e) => e.stopPropagation());
-}
+  }
 
   root.CIC_Renderer = { injectListingWidget, injectSearchWidget };
 
