@@ -10,9 +10,9 @@
  *   powerKw:      { value: number, unit: 'kW' } | null
  *   euroNorm:     { value: string } | null
  *   co2:          { value: number, unit: 'g/km', source, method, confidence }
- *   postcode:     string | null    ← location postcode of the car
- *   country:      string | null    ← ISO-2 country code
- *   el:           Element          ← (search page only) the card DOM element
+ *   postcode:     string | null
+ *   country:      string | null
+ *   el:           Element  (search page only)
  * }
  */
 
@@ -23,6 +23,30 @@
   // ---------------------------------------------------------------------------
   // DOM helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Parses a price string into a number.
+   * Strips everything that is not a digit, including superscript footnotes
+   * like the ¹ character (U+00B9) and trailing \u2060 word-joiners that
+   * AutoScout24 appends to prices.
+   *
+   * Examples that must parse correctly:
+   *   "\u20ac\u00a0103.489\u00b9"  → 103489
+   *   "103.489 1"              → 103489
+   *   "103,489"                → 103489
+   */
+  function parsePrice(raw) {
+    if (!raw) return null;
+    // Remove superscript digits (\u00b9 \u00b2 \u00b3 \u2070-\u2079),
+    // regular trailing digits that are footnote markers (single digit after
+    // a space or directly after the number), and all non-numeric characters
+    // except digits.
+    const cleaned = raw
+      .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, '')  // superscript digits
+      .replace(/\s+\d+$/, '')                              // trailing " 1", " 2" etc.
+      .replace(/[^0-9]/g, '');                             // keep only digits
+    return cleaned ? parseInt(cleaned, 10) : null;
+  }
 
   function parseNumber(raw) {
     if (!raw) return null;
@@ -53,8 +77,8 @@
     if (!section) return null;
     for (const span of section.querySelectorAll('span')) {
       const text = span.textContent.trim();
-      if (text.length < 20) {
-        const val = parseNumber(text);
+      if (text.length < 25) {
+        const val = parsePrice(text);
         if (val && val > 500) return val;
       }
     }
@@ -85,13 +109,7 @@
     };
   }
 
-  /**
-   * Scrape the seller's location from the listing page.
-   * AS24 renders location in a <p> or <span> near the seller info block.
-   * We try multiple selectors and extract a postcode + country from the text.
-   */
   function scrapeLocation() {
-    // Listing page: seller address block
     const candidates = [
       document.querySelector('[data-testid="seller-info"]'),
       document.querySelector('[data-testid="vendor-contact"]'),
@@ -101,11 +119,9 @@
     ];
     for (const el of candidates) {
       if (!el) continue;
-      const text = el.textContent.trim();
-      const loc  = parseLocationText(text);
+      const loc = parseLocationText(el.textContent.trim());
       if (loc) return loc;
     }
-    // Fallback: scan all small text blocks for a postcode pattern
     for (const el of document.querySelectorAll('address, [class*="location"], [class*="Location"]')) {
       const loc = parseLocationText(el.textContent.trim());
       if (loc) return loc;
@@ -113,17 +129,10 @@
     return { postcode: null, country: null };
   }
 
-  /**
-   * Parses a raw text fragment for a postcode and derives the country.
-   * Supports German (5-digit) and Belgian (4-digit) postcodes for now.
-   * Returns { postcode, country } or null.
-   */
   function parseLocationText(text) {
     if (!text) return null;
-    // German postcode: 5 digits
     const de = text.match(/\b(\d{5})\b/);
     if (de) return { postcode: de[1], country: 'DE' };
-    // Belgian postcode: 4 digits (avoid matching years like 2020)
     const be = text.match(/\b([1-9]\d{3})\b/);
     if (be && parseInt(be[1], 10) < 9999) return { postcode: be[1], country: 'BE' };
     return null;
@@ -171,7 +180,6 @@
   // ---------------------------------------------------------------------------
 
   function scrapeSearchPage() {
-    // AS24 uses article elements for result cards; data-testid may vary
     const cards = document.querySelectorAll(
       'article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]'
     );
@@ -179,12 +187,12 @@
 
     const results = [];
     for (const card of cards) {
-      // Price
+      // Price: look for the first element that contains a plausible price
       let price = null;
-      for (const span of card.querySelectorAll('span, p, div')) {
-        const text = span.textContent.trim();
-        if (text.length < 20 && /[\u20ac0-9]/.test(text)) {
-          const val = parseNumber(text);
+      for (const el of card.querySelectorAll('span, p, div, strong')) {
+        const text = el.textContent.trim();
+        if (text.length < 25 && /[\u20ac0-9]/.test(text)) {
+          const val = parsePrice(text);
           if (val && val > 500) { price = val; break; }
         }
       }
@@ -194,9 +202,7 @@
       const yearM    = allText.match(/(19|20)\d{2}/);
       const year     = yearM ? parseInt(yearM[0], 10) : null;
       const fuelType = normalizeFuelType(allText);
-
-      // Location: try to find a postcode in the card text
-      const loc = parseLocationText(allText);
+      const loc      = parseLocationText(allText);
 
       results.push({
         el:           card,

@@ -5,20 +5,20 @@
 
 /* ============================================================
    Listing widget — inserted directly after the AS24 price
-   section. We deliberately avoid padding/margin on the widget
-   itself and instead use the same spacing AS24 uses between
-   its own sidebar sections: a top margin of 16px.
+   section. Transparent background, no border, minimal padding
+   so it blends with the surrounding AS24 sidebar.
    ============================================================ */
 
 #cic-listing-widget {
   font-family: inherit;
   font-size: 14px;
   color: #1b1b1b;
-  background: #f5f7fa;
-  border: 1px solid #d6dce8;
-  border-radius: 4px;
-  padding: 12px 12px 10px;
-  margin-top: 16px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  border-radius: 0;
+  padding: 12px 0 4px;
+  margin-top: 12px;
   box-shadow: none;
 }
 
@@ -27,11 +27,11 @@
 }
 
 .cic-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #1b2d52;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
 }
 
 .cic-table {
@@ -43,10 +43,8 @@
 
 .cic-table td {
   padding: 3px 0;
-  border-bottom: 1px solid #e8eaf0;
+  border-bottom: none;
 }
-
-.cic-table tr:last-child td { border-bottom: none; }
 
 .cic-val {
   text-align: right;
@@ -57,9 +55,9 @@
   font-weight: 700;
   font-size: 14px;
   color: #1b2d52;
-  border-top: 1px solid #b0b8cc;
-  border-bottom: none;
+  border-top: 1px solid #c8c8c8;
   padding-top: 6px;
+  margin-top: 4px;
 }
 
 .cic-tip  { cursor: help; text-decoration: underline dotted; }
@@ -67,8 +65,6 @@
 
 /* ============================================================
    Compact search widget — shown inside each search result card.
-   Mirrors the visual weight of other AS24 card metadata:
-   small font, neutral background, tight rows.
    ============================================================ */
 
 .cic-compact {
