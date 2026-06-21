@@ -7,7 +7,7 @@
  *   3. Wacht op DOM-data (AS24 is een React SPA)
  *   4. Scrape → ListingInfo
  *   5. Bereken → ImportResult  (calculator o.b.v. bestemmingsland)
- *   6. Render → widget of badge
+ *   6. Render → widget
  *
  * Afhankelijkheden (geladen via manifest content_scripts in volgorde):
  *   content/lookups/co2-lookup.js      → window.CIC_Lookups
@@ -23,7 +23,7 @@
   // -------------------------------------------------------------------------
   // Hulpfunctie: wacht tot scrapeFn iets teruggeeft (React SPA laadt async)
   // -------------------------------------------------------------------------
-  async function waitForData(scrapeFn, retries = 15, delayMs = 500) {
+  async function waitForData(scrapeFn, retries = 20, delayMs = 500) {
     for (let i = 0; i < retries; i++) {
       const result = scrapeFn();
       if (result && (result.price || (Array.isArray(result) && result.length))) return result;
@@ -34,10 +34,10 @@
   }
 
   // -------------------------------------------------------------------------
-  // Settings
+  // Settings — laad postcode en fixedCosts
   // -------------------------------------------------------------------------
   const settings = await new Promise((resolve) =>
-    chrome.storage.sync.get({ originIsOutsideEU: true }, resolve)
+    chrome.storage.sync.get({ originIsOutsideEU: false, postcode: '', fixedCosts: 170 }, resolve)
   );
 
   // -------------------------------------------------------------------------
@@ -48,14 +48,11 @@
 
   const SITES = [
     {
-      match:      () => host.includes('autoscout24'),
-      scraper:    () => window.CIC_AS24,
-      calculator: () => window.CIC_NL,
-      isListing:  () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
+      match:     () => host.includes('autoscout24'),
+      scraper:   () => window.CIC_AS24,
+      calc:      () => window.CIC_NL,
+      isListing: () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
     },
-    // Toekomstige sites:
-    // { match: () => host.includes('mobile.de'),   scraper: () => window.CIC_MobileDe,  ... },
-    // { match: () => host.includes('2dehands.be'), scraper: () => window.CIC_2deHands,  ... },
   ];
 
   const site = SITES.find((s) => s.match());
@@ -64,33 +61,45 @@
     return;
   }
 
-  const scraper    = site.scraper();
-  const calculator = site.calculator();
-  const isListing  = site.isListing();
+  const scraper  = site.scraper();
+  const calc     = site.calc();
+  const isListing = site.isListing();
 
   console.log('[CarImport] Gestart op', host, isListing ? '(advertentie)' : '(zoekresultaten)');
 
   // -------------------------------------------------------------------------
-  // Advertentiepagina
+  // Advertentiepagina — volledige widget
   // -------------------------------------------------------------------------
   if (isListing) {
     const listing = await waitForData(() => scraper.scrapeListingPage());
     if (!listing?.price) return;
 
-    const result  = calculator.calculate(listing, settings);
-    const anchor  = document.querySelector('[data-testid="price-section"]');
+    const result = calc.calculate(listing, settings);
+    const anchor = document.querySelector('[data-testid="price-section"]');
     window.CIC_Renderer.injectListingWidget(result, anchor);
     return;
   }
 
   // -------------------------------------------------------------------------
-  // Zoekresultatenpagina
+  // Zoekresultatenpagina — compact widget per kaart
   // -------------------------------------------------------------------------
   const cards = await waitForData(() => scraper.scrapeSearchPage());
   if (!cards?.length) return;
 
   for (const listing of cards) {
-    const result = calculator.calculate(listing, settings);
-    window.CIC_Renderer.injectSearchBadge(result, listing.el);
+    const result = calc.calculate(listing, settings);
+    window.CIC_Renderer.injectSearchWidget(result, listing.el);
   }
+
+  // Observe for dynamically loaded cards (infinite scroll / SPA navigation)
+  const observer = new MutationObserver(() => {
+    const newCards = scraper.scrapeSearchPage();
+    if (!newCards) return;
+    for (const listing of newCards) {
+      if (listing.el.querySelector('.cic-compact')) continue; // already done
+      const result = calc.calculate(listing, settings);
+      window.CIC_Renderer.injectSearchWidget(result, listing.el);
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 })();
