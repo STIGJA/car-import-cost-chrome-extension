@@ -13,11 +13,6 @@
   const fmt = (n) =>
     new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-  /** Rond af op dichtstbijzijnde veelvoud van 100 */
-  function roundHundred(n) {
-    return Math.round(n / 100) * 100;
-  }
-
   // ---------------------------------------------------------------------------
   // Listing widget — full cost breakdown
   // ---------------------------------------------------------------------------
@@ -30,11 +25,13 @@
       labelHtml += ` <span class="cic-warn" title="${item.note.warning}">&#x26A0;&#xFE0F;</span>`;
     }
 
+    // ~ prefix als waarde een schatting is
+    const prefix = item.approx ? '~' : '';
     let valueHtml;
     if (item.note?.valueTooltip) {
-      valueHtml = `<span class="cic-tip" title="${item.note.valueTooltip}">${fmt(item.value)}</span>`;
+      valueHtml = `<span class="cic-tip" title="${item.note.valueTooltip}">${prefix}${fmt(item.value)}</span>`;
     } else {
-      valueHtml = fmt(item.value);
+      valueHtml = `${prefix}${fmt(item.value)}`;
     }
 
     const cls = item.isTotal ? ' class="cic-total-row"' : '';
@@ -70,13 +67,8 @@
       labelHtml = item.label;
     }
 
-    // BPM op zoekpagina: afgerond op €100 met ~ prefix
-    let valueHtml;
-    if (item.key === 'bpm' && item.note?.warning) {
-      valueHtml = `~${fmt(roundHundred(item.value))}`;
-    } else {
-      valueHtml = fmt(item.value);
-    }
+    const prefix = item.approx ? '~' : '';
+    const valueHtml = `${prefix}${fmt(item.value)}`;
 
     const cls = item.isTotal ? ' class="cic-compact-total"' : '';
     return `<tr${cls}><td>${labelHtml}</td><td>${valueHtml}</td></tr>`;
