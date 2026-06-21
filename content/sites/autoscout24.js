@@ -239,6 +239,33 @@
   // Search results page
   // ---------------------------------------------------------------------------
 
+  function scrapePriceFromCard(card) {
+    const priceEl =
+      card.querySelector('[data-testid="price"]') ??
+      card.querySelector('[data-testid="listing-item-price"]') ??
+      card.querySelector('[data-testid="regular-price"]') ??
+      card.querySelector('[class*="Price__value"]') ??
+      card.querySelector('[class*="PriceInfo"]');
+
+    if (priceEl) {
+      const directText = Array.from(priceEl.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent.trim())
+        .join("");
+      const val = parsePrice(directText || priceEl.textContent);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+
+    for (const el of card.querySelectorAll("span, strong, p")) {
+      const text = el.textContent.trim();
+      if (!/[\u20ac]/.test(text)) continue; // € verplicht
+      if (text.length > 30) continue;
+      const val = parsePrice(text);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+    return null;
+  }
+
   function scrapeSearchPage() {
     const cards = document.querySelectorAll(
       'article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
@@ -247,18 +274,7 @@
 
     const results = [];
     for (const card of cards) {
-      // Price: look for the first element that contains a plausible price
-      let price = null;
-      for (const el of card.querySelectorAll("span, p, div, strong")) {
-        const text = el.textContent.trim();
-        if (text.length < 25 && /[\u20ac0-9]/.test(text)) {
-          const val = parsePrice(text);
-          if (val && val > 500) {
-            price = val;
-            break;
-          }
-        }
-      }
+      const price = scrapePriceFromCard(card);
       if (!price) continue;
 
       const allText = card.textContent;
