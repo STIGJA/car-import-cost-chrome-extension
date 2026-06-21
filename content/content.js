@@ -3,7 +3,7 @@
  */
 
 (async function () {
-  'use strict';
+  "use strict";
 
   async function waitForListing(scrapeFn, retries = 20, delayMs = 500) {
     for (let i = 0; i < retries; i++) {
@@ -11,11 +11,11 @@
         const result = scrapeFn();
         if (result?.price?.value) return result;
       } catch (e) {
-        console.warn('[CarImport] scrape poging', i + 1, 'fout:', e);
+        console.warn("[CarImport] scrape poging", i + 1, "fout:", e);
       }
       await new Promise((r) => setTimeout(r, delayMs));
     }
-    console.warn('[CarImport] Listing data niet gevonden.');
+    console.warn("[CarImport] Listing data niet gevonden.");
     return null;
   }
 
@@ -25,19 +25,19 @@
         const result = scrapeFn();
         if (Array.isArray(result) && result.length) return result;
       } catch (e) {
-        console.warn('[CarImport] scrape poging', i + 1, 'fout:', e);
+        console.warn("[CarImport] scrape poging", i + 1, "fout:", e);
       }
       await new Promise((r) => setTimeout(r, delayMs));
     }
-    console.warn('[CarImport] Zoekresultaten niet gevonden.');
+    console.warn("[CarImport] Zoekresultaten niet gevonden.");
     return null;
   }
 
   const settings = await new Promise((resolve) =>
     chrome.storage.sync.get(
-      { postcode: '', fixedCosts: 170, transportByCountry: null },
-      resolve
-    )
+      { postcode: "", fixedCosts: 170, transportByCountry: null },
+      resolve,
+    ),
   );
 
   const host = window.location.hostname;
@@ -45,24 +45,37 @@
 
   const SITES = [
     {
-      match:     () => host.includes('autoscout24'),
-      scraper:   () => window.CIC_AS24,
-      calc:      () => window.CIC_NL,
+      match: () => host.includes("autoscout24"),
+      scraper: () => window.CIC_AS24,
+      calc: () => window.CIC_NL,
       isListing: () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
     },
   ];
 
   const site = SITES.find((s) => s.match());
-  if (!site) { console.log('[CarImport] Site niet herkend:', host); return; }
+  if (!site) {
+    console.log("[CarImport] Site niet herkend:", host);
+    return;
+  }
 
-  const scraper   = site.scraper();
-  const calc      = site.calc();
+  const scraper = site.scraper();
+  const calc = site.calc();
   const isListing = site.isListing();
 
-  if (!scraper) { console.error('[CarImport] Scraper niet geladen (CIC_AS24 undefined)'); return; }
-  if (!calc)    { console.error('[CarImport] Calculator niet geladen (CIC_NL undefined)'); return; }
+  if (!scraper) {
+    console.error("[CarImport] Scraper niet geladen (CIC_AS24 undefined)");
+    return;
+  }
+  if (!calc) {
+    console.error("[CarImport] Calculator niet geladen (CIC_NL undefined)");
+    return;
+  }
 
-  console.log('[CarImport] Gestart op', host, isListing ? '(advertentie)' : '(zoekresultaten)');
+  console.log(
+    "[CarImport] Gestart op",
+    host,
+    isListing ? "(advertentie)" : "(zoekresultaten)",
+  );
 
   if (isListing) {
     const listing = await waitForListing(() => scraper.scrapeListingPage());
@@ -70,7 +83,9 @@
     const result = calc.calculate(listing, settings);
     if (!result) return;
     const anchor = document.querySelector('[data-testid="price-section"]');
-    if (!anchor) { console.warn('[CarImport] price-section anchor niet gevonden'); }
+    if (!anchor) {
+      console.warn("[CarImport] price-section anchor niet gevonden");
+    }
     window.CIC_Renderer.injectListingWidget(result, anchor);
     return;
   }
@@ -87,7 +102,7 @@
     const newCards = scraper.scrapeSearchPage();
     if (!newCards) return;
     for (const listing of newCards) {
-      if (listing.el.querySelector('.cic-compact')) continue;
+      if (listing.el.querySelector(".cic-compact")) continue;
       const result = calc.calculate(listing, settings);
       if (result) window.CIC_Renderer.injectSearchWidget(result, listing.el);
     }
