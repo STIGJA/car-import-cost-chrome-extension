@@ -113,7 +113,7 @@
               ? {
                   valueTooltip: `o.b.v. ${co2}\u00a0g/km CO\u2082 (bruto \u20ac${gross.toLocaleString("nl-NL")})`,
                   warning: co2Estimated
-                    ? `CO\u2082 niet gevonden. BPM geschat o.b.v. ${co2Method ?? "bouwjaar"}`
+                    ? `CO\u2082/km niet gevonden. BPM geschat o.b.v. ${co2Method ?? "bouwjaar"}`
                     : null,
                 }
               : null,
