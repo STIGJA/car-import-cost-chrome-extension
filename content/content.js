@@ -1,15 +1,3 @@
-/**
- * content.js — Orchestrator
- *
- * Site-detectie:
- *  AutoScout24 : host bevat 'autoscout24'
- *                isListing → URL pad bevat /angebote/ | /annonces/ | /aanbod/ | /annunci/
- *
- *  Mobile.de   : hostname === 'suchen.mobile.de'
- *                isListing → pad begint met /fahrzeuge/details.html
- *                isSearch  → pad begint met /fahrzeuge/search.html
- */
-
 (async function () {
   "use strict";
 
@@ -19,7 +7,7 @@
         const result = scrapeFn();
         if (validate(result)) return result;
       } catch (e) {
-        console.warn("[CarImport] scrape poging", i + 1, "fout:", e);
+        console.warn("[CarImport] scrape attempt", i + 1, "failed:", e);
       }
       await new Promise((r) => setTimeout(r, delayMs));
     }
@@ -57,56 +45,25 @@
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
-      /**
-       * Mobile.de sidebar-structuur (bevestigd via HTML-dump, jun 2026):
-       *
-       *   <article data-testid="vip-price-box">
-       *     <section class="HaBLt ku0Os QYNPXh3">
-       *       <h3>Preis</h3>
-       *       <div data-testid="vip-price-label">49.000</div>
-       *       …Finanzierung tabs, accordions…
-       *     </section>
-       *   </article>
-       *
-       * Selector-keten (hoogste betrouwbaarheid eerst):
-       *  1. section binnen vip-price-box → "afterend"
-       *     Widget wordt sibling ná de section, maar nog steeds
-       *     kind van de article → rechter kolom ✓
-       *  2. article[data-testid="vip-price-box"] → "beforeend"
-       *     Widget wordt laatste kind van de price-box article ✓
-       *  3. [data-testid="vip-price-label"] → "afterend"
-       *     Absolute noodoplossing, blijft nabij de prijs ✓
-       *
-       * NIET gebruiken: vip-dealer-box / vip-dealer-box.parentElement
-       *  → afterend op de dealer-article gooit de widget TUSSEN de
-       *    dealer-section en de price-box article, wat resulteert
-       *    in plaatsing in de hoofd-scroll-kolom.
-       */
+      // DOM (verified Jun 2026):
+      //   <article data-testid="vip-price-box">
+      //     <section>  ← price + financing
+      //   </article>
+      // Insert after <section> so widget stays inside the article (right column).
       listingAnchor: () => {
-        // 1. <section> binnen de price-box article
         const priceBox = document.querySelector(
           'article[data-testid="vip-price-box"]',
         );
-        if (priceBox) {
-          const section = priceBox.querySelector("section");
-          if (section) return section;
-          // 2. De article zelf als er geen section is
-          return priceBox;
-        }
-
-        // 3. Absolute fallback: prijs-label
+        if (priceBox) return priceBox.querySelector("section") ?? priceBox;
         return document.querySelector('[data-testid="vip-price-label"]') ?? null;
       },
       listingInsertMethod: (anchorEl) => {
         if (!anchorEl) return "afterend";
-        // article[data-testid="vip-price-box"] zelf → beforeend (append als kind)
         if (
           anchorEl.tagName.toLowerCase() === "article" &&
           anchorEl.dataset?.testid === "vip-price-box"
-        ) {
+        )
           return "beforeend";
-        }
-        // section of vip-price-label → afterend (sibling, blijft in de article)
         return "afterend";
       },
       searchCardWrapper: (cardEl) => cardEl,
@@ -114,79 +71,66 @@
   ];
 
   const site = SITES.find((s) => s.match());
-  if (!site) {
-    console.log("[CarImport] Site niet herkend:", host, path);
-    return;
-  }
+  if (!site) return;
 
   const scraper = site.scraper();
   const calc = site.calc();
   const isListing = site.isListing();
 
   if (!scraper) {
-    console.error("[CarImport] Scraper niet geladen voor:", site.name);
+    console.error("[CarImport] Scraper not loaded for:", site.name);
     return;
   }
   if (!calc) {
-    console.error("[CarImport] Calculator (CIC_NL) niet geladen");
+    console.error("[CarImport] Calculator (CIC_NL) not loaded");
     return;
   }
 
   console.log(
-    `[CarImport] Actief op ${site.name} —`,
-    isListing ? "detailpagina" : "zoekresultaten",
+    `[CarImport] Active on ${site.name} —`,
+    isListing ? "listing" : "search",
     `| ${host}${path}`,
   );
 
-  // -------------------------------------------------------------------------
-  // Detailpagina
-  // -------------------------------------------------------------------------
   if (isListing) {
     const listing = await waitFor(
       () => scraper.scrapeListingPage(),
       (r) => r?.price?.value > 0,
     );
     if (!listing) {
-      console.warn(
-        "[CarImport] Listing data niet gevonden na meerdere pogingen",
-      );
+      console.warn("[CarImport] Listing data not found after retries");
       return;
     }
+
     const result = calc.calculate(listing, settings);
     if (!result) return;
 
-    // Wacht ook op de anchor (Mobile.de laadt prijs soms na DOM-ready)
     let anchor = null;
     for (let i = 0; i < 20; i++) {
       anchor = site.listingAnchor();
       if (anchor) break;
       await new Promise((r) => setTimeout(r, 300));
     }
-    if (!anchor)
-      console.warn(
-        "[CarImport] Prijs-anchor niet gevonden — widget niet injecteerbaar",
-      );
+    if (!anchor) {
+      console.warn("[CarImport] Price anchor not found — widget not injectable");
+      return;
+    }
 
     const insertMethod =
       typeof site.listingInsertMethod === "function"
         ? site.listingInsertMethod(anchor)
-        : site.listingInsertMethod ?? "afterend";
+        : (site.listingInsertMethod ?? "afterend");
 
     window.CIC_Renderer.injectListingWidget(result, anchor, insertMethod);
     return;
   }
 
-  // -------------------------------------------------------------------------
-  // Zoekpagina
-  // -------------------------------------------------------------------------
   const cards = await waitFor(
     () => scraper.scrapeSearchPage(),
     (r) => Array.isArray(r) && r.length > 0,
   );
   if (!cards) {
-    console.warn(
-      "[CarImport] Geen zoekresultaten gevonden na meerdere pogingen",
-    );
+    console.warn("[CarImport] No search results found after retries");
     return;
   }
 
@@ -198,7 +142,6 @@
     }
   }
 
-  // Herinjection bij dynamisch laden (infinite scroll / paginering)
   const observer = new MutationObserver(() => {
     const newCards = scraper.scrapeSearchPage();
     if (!newCards) return;
