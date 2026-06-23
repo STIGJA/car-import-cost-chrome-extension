@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Car Import Cost Calculator",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Toont Nederlandse importkosten direct op AutoScout24 en Mobile.de",
   "permissions": ["storage"],
   "host_permissions": [
@@ -26,8 +26,9 @@
         "*://*.autoscout24.nl/*"
       ],
       "js": [
-        "content/lookups.js",
-        "content/calc_nl.js",
+        "content/lookups/co2-lookup.js",
+        "content/calculators/bpm.js",
+        "content/calculators/nl-import.js",
         "content/renderer.js",
         "content/sites/autoscout24.js",
         "content/content.js"
@@ -42,8 +43,9 @@
         "*://mobile.de/*"
       ],
       "js": [
-        "content/lookups.js",
-        "content/calc_nl.js",
+        "content/lookups/co2-lookup.js",
+        "content/calculators/bpm.js",
+        "content/calculators/nl-import.js",
         "content/renderer.js",
         "content/sites/mobile_de.js",
         "content/content.js"
