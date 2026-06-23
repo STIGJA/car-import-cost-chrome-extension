@@ -44,16 +44,13 @@
       calc: () => window.CIC_NL,
       isListing: () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
       /**
-       * Geeft het anchor-element terug waarná de widget wordt geïnjecteerd.
-       * AutoScout24: [data-testid="price-section"]
+       * AutoScout24: injecteer ná [data-testid="price-section"].
+       * De widget belandt in de rechterzijbalk omdat price-section zelf
+       * al een child is van de sticky sidebar.
        */
       listingAnchor: () =>
         document.querySelector('[data-testid="price-section"]'),
-      /**
-       * Geeft voor een zoekkaart het wrapper-element terug waaróp de widget
-       * als sibling wordt geplaatst (insertAdjacentElement afterend).
-       * AutoScout24: de kaart zelf (article element).
-       */
+      listingInsertMethod: () => "afterend",
       searchCardWrapper: (cardEl) => cardEl,
     },
     {
@@ -66,46 +63,75 @@
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
       /**
-       * Mobile.de detailpagina: de prijs staat in [data-testid="vip-price-label"].
-       * De parent van dat element is de prijs-box. We injecteren ná die parent
-       * zodat de widget direct onder de prijs verschijnt, net als op AutoScout24.
+       * Mobile.de layout (geverifieerd op opgeslagen HTML):
+       *
+       *   <div class="lAeeF">                ← rechterzijbalk
+       *     <div>
+       *       <article data-testid="vip-dealer-box"> ... </article>
+       *     </div>
+       *     <div>
+       *       <article data-testid="vip-price-box">  ← prijsblok
+       *         <section>                            ← prijs + knoppen
+       *           ...
+       *           [data-testid="vip-price-label"]
+       *         </section>
+       *       </article>
+       *     </div>
+       *   </div>
+       *
+       * Strategie: geef de <section> BINNEN vip-price-box terug als anchor
+       * en gebruik insertMethod "afterend" zodat de widget ná die section
+       * maar nog steeds BINNEN de article (en dus de sidebar) belandt.
        *
        * Fallback-keten:
-       *  1. Parent van vip-price-label (de hele prijs-box)
-       *  2. vip-price-label zelf
-       *  3. vip-price-box
+       *  1. <section> binnen vip-price-box
+       *  2. vip-price-box zelf (insert "beforeend" → append binnen de box)
+       *  3. vip-price-label parent (blok-element)
        */
       listingAnchor: () => {
+        const priceBox = document.querySelector(
+          '[data-testid="vip-price-box"]',
+        );
+        if (priceBox) {
+          const section = priceBox.querySelector("section");
+          if (section) return section;
+          return priceBox;
+        }
+        // Meest generieke fallback
         const priceLabel = document.querySelector(
           '[data-testid="vip-price-label"]',
         );
         if (priceLabel) {
-          // Klim omhoog totdat we een wrapper vinden die breed genoeg is
-          // (niet een inline <span> maar een block-level container)
           let el = priceLabel;
           while (el.parentElement) {
             el = el.parentElement;
-            const style = window.getComputedStyle(el);
-            const display = style.display;
+            const d = window.getComputedStyle(el).display;
             if (
-              (display === "block" || display === "flex" || display === "grid") &&
+              (d === "block" || d === "flex" || d === "grid") &&
               el.offsetWidth > 100
-            ) {
+            )
               return el;
-            }
           }
           return priceLabel;
         }
-        return (
-          document.querySelector('[data-testid="vip-price-box"]') ??
-          document.querySelector('[data-testid="price"]')
-        );
+        return null;
       },
       /**
-       * Mobile.de zoekkaart: de kaart is een <a data-testid="result-listing-N">.
-       * We geven de kaart zelf terug — de widget wordt ná de kaart geplaatst
-       * als een sibling, op dezelfde breedte als de kaart.
+       * insertMethod bepaalt hoe de widget t.o.v. de anchor wordt geplaatst:
+       *  - "afterend"    → als sibling NA de anchor (buiten anchor-element)
+       *  - "beforeend"   → als laatste kind BINNEN de anchor
+       *
+       * Voor Mobile.de willen we de widget binnen vip-price-box houden:
+       *  - anchor = <section>  → afterend plaatst hem na de section, nog binnen de article ✓
+       *  - anchor = <article>  → beforeend plaatst hem als laatste kind van de article ✓
        */
+      listingInsertMethod: (anchorEl) => {
+        if (!anchorEl) return "afterend";
+        const tag = anchorEl.tagName.toLowerCase();
+        if (tag === "section") return "afterend";
+        if (tag === "article") return "beforeend";
+        return "afterend";
+      },
       searchCardWrapper: (cardEl) => cardEl,
     },
   ];
@@ -164,7 +190,12 @@
         "[CarImport] Prijs-anchor niet gevonden — widget niet injecteerbaar",
       );
 
-    window.CIC_Renderer.injectListingWidget(result, anchor);
+    const insertMethod =
+      typeof site.listingInsertMethod === "function"
+        ? site.listingInsertMethod(anchor)
+        : site.listingInsertMethod ?? "afterend";
+
+    window.CIC_Renderer.injectListingWidget(result, anchor, insertMethod);
     return;
   }
 
@@ -196,7 +227,6 @@
     if (!newCards) return;
     for (const listing of newCards) {
       if (listing.el.querySelector(".cic-compact")) continue;
-      // Check ook of er al een sibling widget is (voor Mobile.de wrapper-injectie)
       const wrapper = site.searchCardWrapper(listing.el);
       if (wrapper?.nextElementSibling?.classList?.contains("cic-compact"))
         continue;
