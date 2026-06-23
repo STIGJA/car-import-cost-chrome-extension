@@ -1,24 +1,25 @@
 /**
  * mobile_de.js — Scraper voor Mobile.de
  *
- * Geverifieerde selectors via Wayback Machine snapshot (dec 2025 / feb 2026):
- *
- * ZOEKPAGINA (suchen.mobile.de/fahrzeuge/search.html):
- *   Kaart container : <a data-testid="result-listing-{N}">  (N = 1, 2, 3, ...)
- *   → Selector       : [data-testid^="result-listing-"]:not([data-testid*="image"])
- *   Prijs            : [data-testid="price-label"]  bijv. "14.990 €"
- *   Kenmerken        : [data-testid="listing-details-attributes"] plain tekst:
- *                      "Unfallfrei • EZ 10/2013 • 102.696 km • 162 kW (220 PS) • Benzin"
+ * Selectors geverifieerd via opgeslagen detailpagina (Mazda CX-5, juni 2026).
  *
  * DETAILPAGINA (suchen.mobile.de/fahrzeuge/details.html?id=XXXXX):
- *   isListing URL    : hostname === 'suchen.mobile.de' && path.startsWith('/fahrzeuge/details.html')
- *   Prijs            : [data-testid="vip-price-label"]  bijv. "27.980 €"
- *   Kilometerstand   : [data-testid="mileage-item"]     tekst: "Kilometerstand 0 km"
- *   Vermogen         : [data-testid="power-item"]        tekst: "Leistung 125 kW (170 PS)"
- *   Brandstof/motor  : [data-testid="envkv.engineType-item"] tekst: "Antriebsart Elektromotor"
- *                      (fallback: [data-testid="listing-details-attributes"] op zoekkaart)
- *   CO2              : [data-testid="envkv.co2Emissions-item"] tekst bevat g/km
- *   Locatie postcode : [data-testid="vip-dealer-box-seller-address2"] bijv. "DE-51379 Leverkusen"
+ *   Prijs            : [data-testid="vip-price-label"]        → "16.990\u00a0€"
+ *   Kilometerstand   : [data-testid="mileage-item"]           → label+waarde als één blok
+ *   Vermogen         : [data-testid="power-item"]             → "Leistung110\u00a0kW\u00a0(150\u00a0PS)"
+ *   Brandstof        : [data-testid="fuel-item"]              → "KraftstoffartDiesel"
+ *   Motortype        : [data-testid="envkv.engineType-item"]  → "AntriebsartVerbrennungsmotor"
+ *   CO2              : [data-testid="envkv.co2Emissions-item"]→ "CO\u2082-Emissionen (komb.)\u00b2143\u00a0g/km"
+ *   Eerste registratie: [data-testid="firstRegistration-item"] → "Erstzulassung03/2019"
+ *   Euro-norm        : [data-testid="emissionClass-item"]     → "SchadstoffklasseEuro6"
+ *   Adres (locatie)  : [data-testid="vip-dealer-box-seller-address2"] → "DE-16244 Schorfheide"
+ *                      fallback: [data-testid="vehicle-location-badge"]
+ *
+ * ZOEKPAGINA (suchen.mobile.de/fahrzeuge/search.html):
+ *   Kaart container  : [data-testid^="result-listing-"] gefilterd op /^result-listing-\d+$/
+ *   Prijs            : [data-testid="price-label"]            → "14.990 €"
+ *   Kenmerken        : [data-testid="listing-details-attributes"]
+ *                      → "Unfallfrei • EZ 10/2013 • 102.696 km • 162 kW (220 PS) • Benzin"
  *
  * ListingInfo shape (identiek aan autoscout24.js).
  */
@@ -33,7 +34,6 @@
 
   function parsePrice(raw) {
     if (!raw) return null;
-    // Verwijder superscripts (¹²³), BTW-voetnoten achteraan, non-numeriek
     const cleaned = raw
       .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "")
       .replace(/\s+\d+$/, "")
@@ -49,63 +49,63 @@
   }
 
   /**
-   * Leest de tekst van een element maar stript superscripts/voetnoten.
-   * Mobile.de plaatst ² achter CO2-waarden als wettelijke voetnoot.
+   * Kloon het element, verwijder <sup>, <button> en <svg> (voetnoten / iconen),
+   * geef genormaliseerde tekst terug.
    */
   function cleanText(el) {
     if (!el) return "";
-    // Verwijder <sup> en <button> kinderen (voetnoot-nummers en info-buttons)
     const clone = el.cloneNode(true);
-    clone.querySelectorAll("sup, button, svg").forEach(n => n.remove());
+    clone.querySelectorAll("sup, button, svg").forEach((n) => n.remove());
     return clone.textContent.replace(/\s+/g, " ").trim();
   }
 
   /**
-   * Leest de value uit een *-item element.
-   * De structuur is: <dt>Label</dt><dd>Waarde</dd> OF
-   *                  data-testid="X-item" met label+waarde als eerste tekst.
-   * Mobile.de patroon: "Label Waarde" als directe tekst van het item-element.
-   * We knippen de label weg door te splitsen op het eerste cijfer of na een
-   * bekende label-string.
+   * Lees de waarde uit een Mobile.de *-item element.
+   *
+   * Mobile.de structuur (geverifieerd op detailpagina):
+   *   De container [data-testid="X-item"] bevat label én waarde als aaneengesloten
+   *   tekst: bijv. "Kilometerstand135.000\u00a0km". Er is geen aparte <dd>.
+   *
+   * Strategie (meest robuust → minst robuust):
+   *  1. <dt> / <dd> paar binnen het element (zal werken als Mobile.de ooit
+   *     naar semantische markup overschakelt).
+   *  2. Knip de bekende labelstring weg en geef de rest.
+   *  3. Geef de volledige tekst terug (caller bepaalt zelf wat te doen).
    */
-  function readItem(testid) {
+  function readItemValue(testid, labelStrings) {
     const el = document.querySelector(`[data-testid="${testid}"]`);
     if (!el) return null;
-    // Zoek eerst een <dd> binnen het item
+
+    // Strategie 1: semantische <dt>/<dd>
+    const dt = el.querySelector("dt");
+    if (dt) {
+      const dd = dt.nextElementSibling;
+      if (dd && dd.tagName === "DD") return cleanText(dd);
+    }
     const dd = el.querySelector("dd");
     if (dd) return cleanText(dd);
-    // Zoek dt/dd op broer-niveau
-    const dt = el.querySelector("dt");
-    if (dt && dt.nextElementSibling && dt.nextElementSibling.tagName === "DD") {
-      return cleanText(dt.nextElementSibling);
-    }
-    // Fallback: de gehele tekst van het element (label + waarde)
-    return cleanText(el);
-  }
 
-  /**
-   * Mobile.de *-item patroon: de container bevat "Label Waarde" als platte tekst.
-   * De label staat ook als data-testid prefix. We extraheren de waarde door
-   * de bekende labelstring weg te knippen.
-   */
-  function extractValueFromItem(testid, labelWords) {
-    const raw = readItem(testid);
-    if (!raw) return null;
-    let val = raw;
-    for (const lw of labelWords) {
-      const idx = val.indexOf(lw);
-      if (idx !== -1) {
-        val = val.slice(idx + lw.length).trim();
-        break;
+    // Strategie 2: label weghalen uit gecleande tekst
+    const full = cleanText(el);
+    if (labelStrings) {
+      for (const lbl of labelStrings) {
+        const idx = full.indexOf(lbl);
+        if (idx !== -1) {
+          const val = full.slice(idx + lbl.length).trim();
+          if (val) return val;
+        }
       }
     }
-    return val || null;
+
+    // Strategie 3: geef volledige tekst (label + waarde) terug
+    return full || null;
   }
 
   function normalizeFuelType(raw) {
     if (!raw) return "petrol";
     const l = raw.toLowerCase();
-    if (/elektromotor|elektro|\bbev\b|\bev\b|electric/.test(l)) return "electric";
+    // Elektrisch — let op: "Verbrennungsmotor" moet NIET matchen op elektrisch
+    if (/elektromotor|\belektro\b|\bbev\b|\bev\b|\belectric\b/.test(l)) return "electric";
     if (/diesel/.test(l)) return "diesel";
     if (/hybrid|phev|plug.?in/.test(l)) return "hybrid";
     return "petrol";
@@ -122,13 +122,28 @@
 
   function buildCO2Field(fuelType, euroNormRaw, powerKw, year, co2Scraped) {
     const estimation = root.CIC_Lookups.estimateCO2({
-      fuelType, euroNorm: euroNormRaw, powerKw, year,
+      fuelType,
+      euroNorm: euroNormRaw,
+      powerKw,
+      year,
     });
     if (co2Scraped && co2Scraped > 0) {
       root.CIC_Lookups.checkCO2Deviation(co2Scraped, estimation.co2, null);
-      return { value: co2Scraped, unit: "g/km", source: "scraped", method: null, confidence: "scraped" };
+      return {
+        value: co2Scraped,
+        unit: "g/km",
+        source: "scraped",
+        method: null,
+        confidence: "scraped",
+      };
     }
-    return { value: estimation.co2, unit: "g/km", source: "estimated", method: estimation.method, confidence: estimation.confidence };
+    return {
+      value: estimation.co2,
+      unit: "g/km",
+      source: "estimated",
+      method: estimation.method,
+      confidence: estimation.confidence,
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -136,7 +151,8 @@
   // ---------------------------------------------------------------------------
 
   function scrapeListingPage() {
-    // Prijs
+    // --- Prijs ---
+    // [data-testid="vip-price-label"] → "16.990\u00a0€"
     const priceEl = document.querySelector('[data-testid="vip-price-label"]');
     const price = parsePrice(priceEl ? cleanText(priceEl) : null);
     if (!price) {
@@ -144,44 +160,95 @@
       return null;
     }
 
-    // Kilometerstand: [data-testid="mileage-item"] → "Kilometerstand 102.696 km"
-    const mileageRaw = extractValueFromItem("mileage-item", ["Kilometerstand", "Mileage"]);
-    const mileage = parseNumber(mileageRaw);
+    // --- Kilometerstand ---
+    // [data-testid="mileage-item"] → "Kilometerstand135.000\u00a0km"
+    const mileageRaw = readItemValue("mileage-item", ["Kilometerstand", "Mileage"]);
+    const mileage = mileageRaw ? parseNumber(mileageRaw) : null;
 
-    // Vermogen: [data-testid="power-item"] → "Leistung 125 kW (170 PS)"
-    const powerRaw = extractValueFromItem("power-item", ["Leistung", "Power"]);
+    // --- Vermogen ---
+    // [data-testid="power-item"] → "Leistung110\u00a0kW\u00a0(150\u00a0PS)"
+    const powerRaw = readItemValue("power-item", ["Leistung", "Power"]);
     const powerKw = parsePowerKw(powerRaw);
 
-    // Brandstof / motortype: [data-testid="envkv.engineType-item"] → "Antriebsart Elektromotor"
-    const engineRaw = extractValueFromItem("envkv.engineType-item", ["Antriebsart", "Fuel type", "Fuel"]);
+    // --- Brandstof ---
+    // Voorkeur: [data-testid="envkv.engineType-item"] → "AntriebsartVerbrennungsmotor" / "Elektromotor"
+    // Fallback : [data-testid="fuel-item"]           → "KraftstoffartDiesel"
+    const engineRaw =
+      readItemValue("envkv.engineType-item", ["Antriebsart"]) ??
+      readItemValue("fuel-item", ["Kraftstoffart", "Fuel type"]);
     const fuelType = normalizeFuelType(engineRaw);
 
-    // CO2: [data-testid="envkv.co2Emissions-item"] → "CO₂-Emissionen (komb.) ² 0 g/km"
-    const co2Raw = extractValueFromItem("envkv.co2Emissions-item", ["CO₂-Emissionen (komb.)", "CO2", "CO₂"]);
+    // --- CO2 ---
+    // [data-testid="envkv.co2Emissions-item"] → "CO\u2082-Emissionen (komb.)\u00b2143\u00a0g/km"
+    // Na cleanText (sup verwijderd): "CO\u2082-Emissionen (komb.) 143 g/km"
+    const co2Raw = readItemValue("envkv.co2Emissions-item", [
+      "CO\u2082-Emissionen (komb.)",
+      "CO2-Emissionen",
+      "CO2",
+    ]);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
 
-    // Eerste registratie: staat als "EZ MM/YYYY" in de key-features of attributes tekst
-    // Mobile.de gebruikt geen apart testid voor Erstzulassung op de detailpagina;
-    // het staat wel in de listing-details-attributes plain tekst als zoekkaart.
-    // Op de VIP pagina proberen we de structured data of de availability sectie.
+    // --- Eerste registratie ---
+    // [data-testid="firstRegistration-item"] → "Erstzulassung03/2019"
+    // Waarde is direct het datumgedeelte na het label.
     let firstRegDate = null;
-    const pageText = document.body.innerText;
-    const ezM = pageText.match(/EZ\s+(\d{2}\/\d{4})/);
-    if (ezM) firstRegDate = { value: ezM[1], unit: "MM/YYYY" };
+    const regRaw = readItemValue("firstRegistration-item", [
+      "Erstzulassung",
+      "First registration",
+    ]);
+    if (regRaw) {
+      // Formaat: "03/2019" of "MM/YYYY"
+      const m = regRaw.match(/(\d{1,2}[\/.\-]\d{4})/);
+      if (m) {
+        // Normaliseer naar MM/YYYY
+        const normalized = m[1].replace(/[.\-]/, "/");
+        firstRegDate = { value: normalized, unit: "MM/YYYY" };
+      }
+    }
+    // Fallback: zoek in paginatekst naar "EZ MM/YYYY"
+    if (!firstRegDate) {
+      const ezM = document.body.innerText.match(/EZ\s+(\d{2}\/\d{4})/);
+      if (ezM) firstRegDate = { value: ezM[1], unit: "MM/YYYY" };
+    }
 
-    // Euro-norm: niet altijd aanwezig op VIP, maar emissionsSticker-item heeft Umweltplakette
-    // Euroklasse is te schatten via envkv data
-    const euroNorm = null; // wordt geëstimeerd in buildCO2Field
+    // --- Euro-norm ---
+    // [data-testid="emissionClass-item"] → "SchadstoffklasseEuro6"
+    const euroRaw = readItemValue("emissionClass-item", [
+      "Schadstoffklasse",
+      "Emission class",
+    ]);
+    // Normaliseer naar "Euro6" / "Euro5" etc.
+    const euroNorm = euroRaw
+      ? (euroRaw.match(/Euro\s*\d[a-z]?/i)?.[0] ?? null)
+      : null;
 
-    // Locatie: [data-testid="vip-dealer-box-seller-address2"] → "DE-51379 Leverkusen"
-    const addrEl = document.querySelector('[data-testid="vip-dealer-box-seller-address2"]');
-    const addrText = addrEl ? cleanText(addrEl) : "";
-    // Patroon: "DE-51379 Leverkusen" of gewoon "51379 Leverkusen"
-    const postcodeM = addrText.match(/(?:DE-)?\b(\d{4,5})\b/);
-    const postcode = postcodeM ? postcodeM[1] : null;
-    const country = addrText.includes("DE-") || postcode ? "DE" : null;
+    // --- Locatie ---
+    // Voorkeur: [data-testid="vip-dealer-box-seller-address2"] → "DE-16244 Schorfheide"
+    // Fallback : [data-testid="vehicle-location-badge"]
+    //            [data-testid="seller-title-address"]
+    const addrSelectors = [
+      '[data-testid="vip-dealer-box-seller-address2"]',
+      '[data-testid="vehicle-location-badge"]',
+      '[data-testid="seller-title-address"]',
+    ];
+    let postcode = null;
+    let country = null;
+    for (const sel of addrSelectors) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const text = cleanText(el);
+      // Patroon: optioneel "DE-" gevolgd door 5 cijfers
+      const m = text.match(/(?:([A-Z]{2})-)?\b(\d{5})\b/);
+      if (m) {
+        postcode = m[2];
+        country = m[1] ?? "DE"; // mobile.de is Duits platform
+        break;
+      }
+    }
 
-    const year = firstRegDate ? parseInt(firstRegDate.value.split("/")[1]) : null;
+    const year = firstRegDate
+      ? parseInt(firstRegDate.value.split("/")[1])
+      : null;
 
     const listing = {
       price: { value: price, unit: "EUR" },
@@ -189,7 +256,7 @@
       fuelType: { value: fuelType },
       mileage: mileage ? { value: mileage, unit: "km" } : null,
       powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
-      euroNorm,
+      euroNorm: euroNorm ? { value: euroNorm } : null,
       co2: buildCO2Field(fuelType, euroNorm, powerKw, year, co2Scraped),
       postcode,
       country,
@@ -206,27 +273,30 @@
   /**
    * Parseer de listing-details-attributes tekst van een zoekkaart.
    * Formaat: "Unfallfrei • EZ 10/2013 • 102.696 km • 162 kW (220 PS) • Benzin"
-   * Segmenten zijn gescheiden door "•" of via <!-- --> comment nodes in de HTML,
-   * maar na tekstextractie is het een gewone bullet-string.
    */
   function parseAttributesText(text) {
     if (!text) return {};
     const result = {};
 
-    // EZ (eerste registratie)
-    const ezM = text.match(/EZ\s+(\d{1,2}\/\d{4})/);
-    if (ezM) result.firstRegDate = { value: ezM[1], unit: "MM/YYYY" };
+    // Eerste registratie
+    const ezM = text.match(/EZ\s+(\d{1,2}[\/.\-]\d{4})/);
+    if (ezM) {
+      const norm = ezM[1].replace(/[.\-]/, "/");
+      result.firstRegDate = { value: norm, unit: "MM/YYYY" };
+    }
 
-    // Kilometerstand (bijv. "102.696 km" of "0 km")
+    // Kilometerstand
     const kmM = text.match(/(\d[\d.,]*)\s*km\b/i);
     if (kmM) result.mileage = { value: parseNumber(kmM[1]), unit: "km" };
 
-    // Vermogen (bijv. "162 kW" of "162 kW (220 PS)")
+    // Vermogen
     const kwM = text.match(/(\d+)\s*kW/);
     if (kwM) result.powerKw = { value: parseInt(kwM[1], 10), unit: "kW" };
 
-    // Brandstof (laatste woord / keyword)
-    const fuelM = text.match(/\b(Benzin|Diesel|Elektro|Hybrid|PHEV|Plug-in|Wasserstoff)\b/i);
+    // Brandstof
+    const fuelM = text.match(
+      /\b(Benzin|Diesel|Elektro|Hybrid|PHEV|Plug-in|Wasserstoff)\b/i,
+    );
     if (fuelM) result.fuelType = { value: normalizeFuelType(fuelM[1]) };
 
     return result;
@@ -234,17 +304,15 @@
 
   function scrapeSearchPage() {
     /**
-     * Mobile.de zoekkaarten zijn <a data-testid="result-listing-N"> elementen.
-     * N loopt van 1 oplopend. Image-containers zijn result-listing-image-N.
-     * We selecteren alle result-listing-* ZONDER "image" in de testid.
+     * Mobile.de zoekkaarten: <a data-testid="result-listing-N">
+     * N loopt van 1 oplopend. Afbeeldingcontainers heten result-listing-image-N.
+     * We filteren op exact patroon /^result-listing-\d+$/ om die uit te sluiten.
      */
     const cards = Array.from(
-      document.querySelectorAll('[data-testid^="result-listing-"]')
-    ).filter(el => {
-      const tid = el.getAttribute("data-testid");
-      // Alleen de kaart-containers, niet de afbeeldingselementen
-      return /^result-listing-\d+$/.test(tid);
-    });
+      document.querySelectorAll('[data-testid^="result-listing-"]'),
+    ).filter((el) =>
+      /^result-listing-\d+$/.test(el.getAttribute("data-testid")),
+    );
 
     if (!cards.length) {
       console.warn("[CarImport] mobile.de: geen result-listing-N kaarten gevonden");
@@ -260,17 +328,16 @@
       const price = parsePrice(priceEl ? cleanText(priceEl) : null);
       if (!price) continue;
 
-      // Kenmerken uit listing-details-attributes
-      const attrsEl = card.querySelector('[data-testid="listing-details-attributes"]');
+      // Kenmerken
+      const attrsEl = card.querySelector(
+        '[data-testid="listing-details-attributes"]',
+      );
       const attrsText = attrsEl ? cleanText(attrsEl) : "";
       const attrs = parseAttributesText(attrsText);
 
-      // Locatie uit listing-details-availability OF seller-info tekst
-      // Mobile.de toont op zoekkaart de postcode in seller-info: "99189 Gebesee"
-      const sellerEl = card.querySelector('[data-testid="seller-info"]') ??
-                       card.querySelector('[class*="seller"], [class*="Seller"], [class*="dealer"]');
-      const sellerText = sellerEl ? cleanText(sellerEl) : cleanText(card);
-      const postcodeM = sellerText.match(/\b(\d{5})\b/);
+      // Locatie: 5-cijferige postcode in kaart-tekst
+      const cardText = cleanText(card);
+      const postcodeM = cardText.match(/\b(\d{5})\b/);
       const postcode = postcodeM ? postcodeM[1] : null;
 
       const year = attrs.firstRegDate
@@ -293,7 +360,9 @@
       });
     }
 
-    console.log(`[CarImport] mobile.de: ${results.length} resultaten met prijs`);
+    console.log(
+      `[CarImport] mobile.de: ${results.length} resultaten met prijs`,
+    );
     return results.length ? results : null;
   }
 
