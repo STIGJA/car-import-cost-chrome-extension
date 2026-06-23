@@ -58,41 +58,42 @@
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
       /**
-       * Mobile.de sidebar-structuur (live DOM, jun 2026):
+       * Mobile.de sidebar-structuur (bevestigd via DevTools, jun 2026):
        *
-       *   <div>                                     ← sidebar wrapper
-       *     <div>                                   ← dealer-box wrapper  ← anchor
-       *       <article data-testid="vip-dealer-box">
-       *         ...dealer info, telefoonnummer, e-mail, parken, teilen...
+       *   <div data-testid="vip-desktop-p">    ← desktop wrapper
+       *     <aside>                            ← DE sidebar (enige <aside> hierin)
+       *       <article>
+       *         <section>
+       *           <h2>BMW M5</h2>
+       *           ...prijs, dealer info...
+       *           <div data-testid="seller-title-address">
+       *         </section>
        *       </article>
-       *     </div>
-       *     <div>                                   ← widget komt hier (afterend)
-       *       ...prijs info...
-       *       [data-testid="vip-price-label"]
-       *     </div>
+       *                                        ← widget komt hier (beforeend)
+       *     </aside>
        *   </div>
        *
-       * Waarom vorige pogingen faalden:
-       *   - vip-price-box bestaat NIET in de live DOM (alleen in opgeslagen HTML)
-       *   - vip-price-label komt TWEE KEER voor: één keer in de linker
-       *     hoofdkolom (Preis/Finanzierung sectie) en één keer in de sidebar.
-       *     querySelector() pakt altijd de eerste = linker kolom. ✗
+       * Selector: [data-testid="vip-desktop-p"] aside
+       * insertMethod: "beforeend" → appended als laatste kind van de aside.
        *
-       * Oplossing: gebruik vip-dealer-box als sidebar-ankerpunt.
-       *   - vip-dealer-box is aantoonbaar aanwezig in de live DOM (de scraper
-       *     gebruikt hem al voor vip-dealer-box-seller-address2).
-       *   - vip-dealer-box.parentElement = de <div> wrapper rondom de article.
-       *   - insertAdjacentElement("afterend") op die wrapper plaatst de widget
-       *     als volgende sibling: direct ónder de dealer-box, nog steeds
-       *     binnen de sidebar. ✓
-       *
-       * Prioriteitsvolgorde:
-       *  1. vip-dealer-box.parentElement → afterend ✓  (ideaal)
-       *  2. vip-dealer-box zelf          → afterend ✓  (bijna hetzelfde)
-       *  3. sidebar-container via breedte-heuristiek → beforeend ✓
-       *  4. absolute fallback: eerste vip-price-label (links, beter dan niets)
+       * Fallback-keten:
+       *  1. aside binnen vip-desktop-p  → beforeend  ✓
+       *  2. vip-desktop-p zelf          → beforeend  ✓
+       *  3. vip-dealer-box.parentElement → afterend  ✓
+       *  4. vip-dealer-box              → afterend  ✓
        */
       listingAnchor: () => {
+        // Primaire selector: de <aside> binnen de desktop price wrapper
+        const desktopWrapper = document.querySelector(
+          '[data-testid="vip-desktop-p"]',
+        );
+        if (desktopWrapper) {
+          const aside = desktopWrapper.querySelector("aside");
+          if (aside) return aside;
+          return desktopWrapper;
+        }
+
+        // Fallback 1: vip-dealer-box.parentElement (vorige strategie)
         const dealerBox = document.querySelector(
           '[data-testid="vip-dealer-box"]',
         );
@@ -100,37 +101,15 @@
           return dealerBox.parentElement ?? dealerBox;
         }
 
-        // Fallback: zoek de sidebar via breedte van vip-dealer-box-seller-address2
-        const addrEl = document.querySelector(
-          '[data-testid="vip-dealer-box-seller-address2"]',
-        );
-        if (addrEl) {
-          let el = addrEl;
-          while (el.parentElement && el.parentElement !== document.body) {
-            el = el.parentElement;
-            const rect = el.getBoundingClientRect();
-            // Sidebar is smaller dan de hoofdkolom (< 55% viewport breedte)
-            // en heeft een zinvolle breedte (> 200px)
-            if (rect.width > 200 && rect.width < window.innerWidth * 0.55) {
-              return el;
-            }
-          }
-        }
-
         // Absolute fallback
         return document.querySelector('[data-testid="vip-price-label"]') ?? null;
       },
       listingInsertMethod: (anchorEl) => {
         if (!anchorEl) return "afterend";
-        // parentElement van dealer-box of dealer-box zelf → afterend (sibling)
-        // sidebar container → beforeend (als laatste kind)
-        const testid = anchorEl.getAttribute?.("data-testid") ?? "";
-        if (testid === "vip-dealer-box") return "afterend";
-        // Als het een grote container is (sidebar) → beforeend
-        const rect = anchorEl.getBoundingClientRect();
-        if (rect.width > 200 && rect.width < window.innerWidth * 0.55) {
-          return "beforeend";
-        }
+        const tag = anchorEl.tagName.toLowerCase();
+        // <aside> of wrapper-div → beforeend (append als laatste kind)
+        if (tag === "aside" || tag === "div") return "beforeend";
+        // vip-dealer-box article of parentElement → afterend
         return "afterend";
       },
       searchCardWrapper: (cardEl) => cardEl,
