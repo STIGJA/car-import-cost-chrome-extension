@@ -50,6 +50,13 @@
       calc: () => window.CIC_NL,
       isListing: () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
     },
+    {
+      match: () => host.includes("mobile.de"),
+      scraper: () => window.CIC_MDE,
+      calc: () => window.CIC_NL,
+      // Mobile.de advertentiepagina's bevatten "/fahrzeug-inserate/" of "/auto/" in het pad
+      isListing: () => /\/fahrzeug-inserate\/|fahrzeugdetails\/|\/auto\/[^/]+-[0-9]+/.test(path),
+    },
   ];
 
   const site = SITES.find((s) => s.match());
@@ -63,7 +70,7 @@
   const isListing = site.isListing();
 
   if (!scraper) {
-    console.error("[CarImport] Scraper niet geladen (CIC_AS24 undefined)");
+    console.error("[CarImport] Scraper niet geladen:", host);
     return;
   }
   if (!calc) {
@@ -82,9 +89,14 @@
     if (!listing) return;
     const result = calc.calculate(listing, settings);
     if (!result) return;
-    const anchor = document.querySelector('[data-testid="price-section"]');
+    // Probeer platform-specifieke anchor, val terug op eerste prijs-element
+    const anchor =
+      document.querySelector('[data-testid="price-section"]') ??
+      document.querySelector('[data-testid="price"]') ??
+      document.querySelector('[class*="PriceInfo"]') ??
+      document.querySelector('[class*="VehiclePrice"]');
     if (!anchor) {
-      console.warn("[CarImport] price-section anchor niet gevonden");
+      console.warn("[CarImport] prijs-anchor niet gevonden");
     }
     window.CIC_Renderer.injectListingWidget(result, anchor);
     return;
