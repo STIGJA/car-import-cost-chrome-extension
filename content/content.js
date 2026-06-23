@@ -58,58 +58,55 @@
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
       /**
-       * Mobile.de sidebar-structuur (bevestigd via DevTools, jun 2026):
+       * Mobile.de sidebar-structuur (bevestigd via HTML-dump, jun 2026):
        *
-       *   <div data-testid="vip-desktop-p">    ← desktop wrapper
-       *     <aside>                            ← DE sidebar (enige <aside> hierin)
-       *       <article>
-       *         <section>
-       *           <h2>BMW M5</h2>
-       *           ...prijs, dealer info...
-       *           <div data-testid="seller-title-address">
-       *         </section>
-       *       </article>
-       *                                        ← widget komt hier (beforeend)
-       *     </aside>
-       *   </div>
+       *   <article data-testid="vip-price-box">
+       *     <section class="HaBLt ku0Os QYNPXh3">
+       *       <h3>Preis</h3>
+       *       <div data-testid="vip-price-label">49.000</div>
+       *       …Finanzierung tabs, accordions…
+       *     </section>
+       *   </article>
        *
-       * Selector: [data-testid="vip-desktop-p"] aside
-       * insertMethod: "beforeend" → appended als laatste kind van de aside.
+       * Selector-keten (hoogste betrouwbaarheid eerst):
+       *  1. section binnen vip-price-box → "afterend"
+       *     Widget wordt sibling ná de section, maar nog steeds
+       *     kind van de article → rechter kolom ✓
+       *  2. article[data-testid="vip-price-box"] → "beforeend"
+       *     Widget wordt laatste kind van de price-box article ✓
+       *  3. [data-testid="vip-price-label"] → "afterend"
+       *     Absolute noodoplossing, blijft nabij de prijs ✓
        *
-       * Fallback-keten:
-       *  1. aside binnen vip-desktop-p  → beforeend  ✓
-       *  2. vip-desktop-p zelf          → beforeend  ✓
-       *  3. vip-dealer-box.parentElement → afterend  ✓
-       *  4. vip-dealer-box              → afterend  ✓
+       * NIET gebruiken: vip-dealer-box / vip-dealer-box.parentElement
+       *  → afterend op de dealer-article gooit de widget TUSSEN de
+       *    dealer-section en de price-box article, wat resulteert
+       *    in plaatsing in de hoofd-scroll-kolom.
        */
       listingAnchor: () => {
-        // Primaire selector: de <aside> binnen de desktop price wrapper
-        const desktopWrapper = document.querySelector(
-          '[data-testid="vip-desktop-p"]',
+        // 1. <section> binnen de price-box article
+        const priceBox = document.querySelector(
+          'article[data-testid="vip-price-box"]',
         );
-        if (desktopWrapper) {
-          const aside = desktopWrapper.querySelector("aside");
-          if (aside) return aside;
-          return desktopWrapper;
+        if (priceBox) {
+          const section = priceBox.querySelector("section");
+          if (section) return section;
+          // 2. De article zelf als er geen section is
+          return priceBox;
         }
 
-        // Fallback 1: vip-dealer-box.parentElement (vorige strategie)
-        const dealerBox = document.querySelector(
-          '[data-testid="vip-dealer-box"]',
-        );
-        if (dealerBox) {
-          return dealerBox.parentElement ?? dealerBox;
-        }
-
-        // Absolute fallback
+        // 3. Absolute fallback: prijs-label
         return document.querySelector('[data-testid="vip-price-label"]') ?? null;
       },
       listingInsertMethod: (anchorEl) => {
         if (!anchorEl) return "afterend";
-        const tag = anchorEl.tagName.toLowerCase();
-        // <aside> of wrapper-div → beforeend (append als laatste kind)
-        if (tag === "aside" || tag === "div") return "beforeend";
-        // vip-dealer-box article of parentElement → afterend
+        // article[data-testid="vip-price-box"] zelf → beforeend (append als kind)
+        if (
+          anchorEl.tagName.toLowerCase() === "article" &&
+          anchorEl.dataset?.testid === "vip-price-box"
+        ) {
+          return "beforeend";
+        }
+        // section of vip-price-label → afterend (sibling, blijft in de article)
         return "afterend";
       },
       searchCardWrapper: (cardEl) => cardEl,
