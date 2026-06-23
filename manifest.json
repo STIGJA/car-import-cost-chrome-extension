@@ -1,30 +1,35 @@
 {
   "manifest_version": 3,
   "name": "Car Import Cost Calculator",
-  "version": "0.6.0",
-  "description": "Toont importkosten naar Nederland direct op AutoScout24 en Mobile.de advertenties.",
+  "version": "0.7.0",
+  "description": "Toont Nederlandse importkosten direct op AutoScout24 en Mobile.de",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "*://*.autoscout24.com/*",
+    "*://*.autoscout24.nl/*",
+    "*://suchen.mobile.de/*",
+    "*://www.mobile.de/*",
+    "*://mobile.de/*"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
-      "16": "icons/icon-16.png",
-      "48": "icons/icon-48.png",
-      "128": "icons/icon-128.png"
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
   },
   "content_scripts": [
     {
       "matches": [
-        "*://www.autoscout24.de/*",
-        "*://www.autoscout24.nl/*",
-        "*://www.autoscout24.be/*",
-        "*://www.autoscout24.fr/*"
+        "*://*.autoscout24.com/*",
+        "*://*.autoscout24.nl/*"
       ],
       "js": [
-        "content/calculators/bpm.js",
-        "content/lookups/co2-lookup.js",
-        "content/calculators/nl-import.js",
-        "content/sites/autoscout24.js",
+        "content/lookups.js",
+        "content/calc_nl.js",
         "content/renderer.js",
+        "content/sites/autoscout24.js",
         "content/content.js"
       ],
       "css": ["content/widget.css"],
@@ -32,33 +37,19 @@
     },
     {
       "matches": [
+        "*://suchen.mobile.de/*",
         "*://www.mobile.de/*",
         "*://mobile.de/*"
       ],
       "js": [
-        "content/calculators/bpm.js",
-        "content/lookups/co2-lookup.js",
-        "content/calculators/nl-import.js",
-        "content/sites/mobile_de.js",
+        "content/lookups.js",
+        "content/calc_nl.js",
         "content/renderer.js",
+        "content/sites/mobile_de.js",
         "content/content.js"
       ],
       "css": ["content/widget.css"],
       "run_at": "document_idle"
     }
-  ],
-  "permissions": ["storage"],
-  "host_permissions": [
-    "*://www.autoscout24.de/*",
-    "*://www.autoscout24.nl/*",
-    "*://www.autoscout24.be/*",
-    "*://www.autoscout24.fr/*",
-    "*://www.mobile.de/*",
-    "*://mobile.de/*"
-  ],
-  "icons": {
-    "16": "icons/icon-16.png",
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
-  }
+  ]
 }
