@@ -1,25 +1,24 @@
-/* ===========================================================
-   Car Import Cost — widget styles
-   Prefix: cic-  (prevents conflicts with host-site CSS)
-   =========================================================== */
+/* ==========================================================================
+   Car Import Cost — Widget Styles
+   Werkt op AutoScout24 én Mobile.de via Shadow DOM-loze injectie.
+   ========================================================================== */
 
-/* ============================================================
-   Listing widget — inserted directly after the AS24 price
-   section. Transparent background, no border, minimal padding
-   so it blends with the surrounding AS24 sidebar.
-   ============================================================ */
+/* --------------------------------------------------------------------------
+   DETAILPAGINA — #cic-listing-widget
+   Geplaatst als sibling ná de prijs-box, zelfde breedte als die box.
+   -------------------------------------------------------------------------- */
 
 #cic-listing-widget {
-  font-family: inherit;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
-  color: #1b1b1b;
-  background: transparent;
-  border: none;
-  border-top: 1px solid #e0e0e0;
-  border-radius: 0;
-  padding: 12px 0 4px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 12px 16px;
   margin-top: 12px;
-  box-shadow: none;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+  color: #212529;
 }
 
 .cic-header {
@@ -27,99 +26,105 @@
 }
 
 .cic-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #1b2d52;
+  font-weight: 600;
+  font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  color: #495057;
 }
 
 .cic-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  line-height: 1.5;
 }
 
 .cic-table td {
   padding: 3px 0;
-  border-bottom: none;
+  vertical-align: top;
 }
 
-.cic-val {
+.cic-table td:last-child {
   text-align: right;
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-left: 8px;
 }
 
 .cic-total-row td {
   font-weight: 700;
-  font-size: 14px;
-  color: #1b2d52;
-  border-top: 1px solid #c8c8c8;
+  border-top: 1px solid #ced4da;
   padding-top: 6px;
-  margin-top: 4px;
+  font-size: 14px;
+}
+
+.cic-val {
+  font-variant-numeric: tabular-nums;
+}
+
+.cic-warn {
+  cursor: help;
 }
 
 .cic-tip {
   cursor: help;
   text-decoration: underline dotted;
 }
-.cic-warn {
-  cursor: help;
-  font-size: 12px;
-}
 
-/* ============================================================
-   Compact search widget — shown inside each search result card.
-   ============================================================ */
+/* --------------------------------------------------------------------------
+   ZOEKPAGINA — .cic-compact
+   Geplaatst als sibling ná de kaart — neemt de volledige breedte van de
+   parent-container aan (dezelfde als de kaart erboven).
+   -------------------------------------------------------------------------- */
 
 .cic-compact {
-  font-family: inherit;
-  font-size: 13px;
-  color: #1b1b1b;
-  background: transparent;
-  border: none;
-  border-top: 1px solid #e0e0e0;
-  padding: 10px 0 4px;
-  margin-top: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-top: none;          /* visueel geplakt aan de kaart */
+  border-radius: 0 0 8px 8px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  color: #212529;
+  /* Volledige breedte: als sibling in dezelfde flex/grid container als de kaart */
+  width: 100%;
+  display: block;
 }
 
 .cic-compact-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #1b2d52;
+  font-weight: 600;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  margin-bottom: 4px;
 }
 
 .cic-compact-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 12px;
 }
 
 .cic-compact-table td {
   padding: 2px 0;
-  font-size: 13px;
-  color: #1b1b1b;
-  line-height: 1.5;
+  vertical-align: top;
 }
 
 .cic-compact-table td:last-child {
   text-align: right;
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-left: 8px;
 }
 
 .cic-compact-total td {
   font-weight: 700;
-  font-size: 16px;
-  color: #1b2d52;
-  border-top: 1px solid #c8c8c8;
-  padding-top: 5px;
+  border-top: 1px solid #ced4da;
+  padding-top: 4px;
 }
 
 .cic-compact-estimated {
-  font-size: 11px;
-  color: #888;
+  font-size: 10px;
+  color: #6c757d;
   font-style: italic;
 }
