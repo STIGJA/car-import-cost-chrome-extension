@@ -43,11 +43,6 @@
       scraper: () => window.CIC_AS24,
       calc: () => window.CIC_NL,
       isListing: () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
-      /**
-       * AutoScout24: injecteer ná [data-testid="price-section"].
-       * De widget belandt in de rechterzijbalk omdat price-section zelf
-       * al een child is van de sticky sidebar.
-       */
       listingAnchor: () =>
         document.querySelector('[data-testid="price-section"]'),
       listingInsertMethod: () => "afterend",
@@ -63,59 +58,79 @@
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
       /**
-       * Mobile.de layout (geverifieerd op opgeslagen HTML):
+       * Mobile.de sidebar-structuur (live DOM, jun 2026):
        *
-       *   <div class="lAeeF">                ← rechterzijbalk
-       *     <div>
-       *       <article data-testid="vip-dealer-box"> ... </article>
-       *     </div>
-       *     <div>
-       *       <article data-testid="vip-price-box">  ← prijsblok
-       *         <section>                            ← prijs + knoppen
-       *           ...
-       *           [data-testid="vip-price-label"]
-       *         </section>
+       *   <div>                                     ← sidebar wrapper
+       *     <div>                                   ← dealer-box wrapper  ← anchor
+       *       <article data-testid="vip-dealer-box">
+       *         ...dealer info, telefoonnummer, e-mail, parken, teilen...
        *       </article>
+       *     </div>
+       *     <div>                                   ← widget komt hier (afterend)
+       *       ...prijs info...
+       *       [data-testid="vip-price-label"]
        *     </div>
        *   </div>
        *
-       * Prioriteitsvolgorde:
-       *  1. <section> binnen vip-price-box → insertMethod "afterend"
-       *     Plaatst de widget als sibling ná de section, maar nog steeds
-       *     binnen de <article> (en dus de rechterzijbalk). ✓
-       *  2. vip-price-box zelf → insertMethod "beforeend"
-       *     Widget wordt als laatste kind van de article toegevoegd. ✓
-       *  3. vip-price-label → insertMethod "afterend"
-       *     Uiterste fallback; widget komt direct na het prijslabel. ✓
+       * Waarom vorige pogingen faalden:
+       *   - vip-price-box bestaat NIET in de live DOM (alleen in opgeslagen HTML)
+       *   - vip-price-label komt TWEE KEER voor: één keer in de linker
+       *     hoofdkolom (Preis/Finanzierung sectie) en één keer in de sidebar.
+       *     querySelector() pakt altijd de eerste = linker kolom. ✗
        *
-       * De vroegere generieke DOM-walk (zoekende naar een breed block-element)
-       * is verwijderd omdat die te vaak in de hoofdkolom terechtkwam.
+       * Oplossing: gebruik vip-dealer-box als sidebar-ankerpunt.
+       *   - vip-dealer-box is aantoonbaar aanwezig in de live DOM (de scraper
+       *     gebruikt hem al voor vip-dealer-box-seller-address2).
+       *   - vip-dealer-box.parentElement = de <div> wrapper rondom de article.
+       *   - insertAdjacentElement("afterend") op die wrapper plaatst de widget
+       *     als volgende sibling: direct ónder de dealer-box, nog steeds
+       *     binnen de sidebar. ✓
+       *
+       * Prioriteitsvolgorde:
+       *  1. vip-dealer-box.parentElement → afterend ✓  (ideaal)
+       *  2. vip-dealer-box zelf          → afterend ✓  (bijna hetzelfde)
+       *  3. sidebar-container via breedte-heuristiek → beforeend ✓
+       *  4. absolute fallback: eerste vip-price-label (links, beter dan niets)
        */
       listingAnchor: () => {
-        const priceBox = document.querySelector(
-          '[data-testid="vip-price-box"]',
+        const dealerBox = document.querySelector(
+          '[data-testid="vip-dealer-box"]',
         );
-        if (priceBox) {
-          const section = priceBox.querySelector("section");
-          if (section) return section;
-          return priceBox;
+        if (dealerBox) {
+          return dealerBox.parentElement ?? dealerBox;
         }
-        // Laatste fallback: direct ná het prijslabel
+
+        // Fallback: zoek de sidebar via breedte van vip-dealer-box-seller-address2
+        const addrEl = document.querySelector(
+          '[data-testid="vip-dealer-box-seller-address2"]',
+        );
+        if (addrEl) {
+          let el = addrEl;
+          while (el.parentElement && el.parentElement !== document.body) {
+            el = el.parentElement;
+            const rect = el.getBoundingClientRect();
+            // Sidebar is smaller dan de hoofdkolom (< 55% viewport breedte)
+            // en heeft een zinvolle breedte (> 200px)
+            if (rect.width > 200 && rect.width < window.innerWidth * 0.55) {
+              return el;
+            }
+          }
+        }
+
+        // Absolute fallback
         return document.querySelector('[data-testid="vip-price-label"]') ?? null;
       },
-      /**
-       * insertMethod bepaalt hoe de widget t.o.v. de anchor wordt geplaatst:
-       *  - "afterend"  → als sibling NA de anchor (buiten anchor-element)
-       *  - "beforeend" → als laatste kind BINNEN de anchor
-       */
       listingInsertMethod: (anchorEl) => {
         if (!anchorEl) return "afterend";
-        const tag = anchorEl.tagName.toLowerCase();
-        // <section> binnen de article → afterend blijft binnen de article ✓
-        if (tag === "section") return "afterend";
-        // vip-price-box article zelf → append als laatste kind ✓
-        if (tag === "article") return "beforeend";
-        // vip-price-label of ander element → afterend (dicht bij de prijs)
+        // parentElement van dealer-box of dealer-box zelf → afterend (sibling)
+        // sidebar container → beforeend (als laatste kind)
+        const testid = anchorEl.getAttribute?.("data-testid") ?? "";
+        if (testid === "vip-dealer-box") return "afterend";
+        // Als het een grote container is (sidebar) → beforeend
+        const rect = anchorEl.getBoundingClientRect();
+        if (rect.width > 200 && rect.width < window.innerWidth * 0.55) {
+          return "beforeend";
+        }
         return "afterend";
       },
       searchCardWrapper: (cardEl) => cardEl,
