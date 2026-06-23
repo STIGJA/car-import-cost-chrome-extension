@@ -2,26 +2,32 @@
  * renderer.js — Converts an ImportResult into HTML and injects it into the DOM.
  *
  * Exports via window.CIC_Renderer:
- *   injectListingWidget(result, anchorEl)            — full widget on car detail page
- *   injectSearchWidget(result, cardEl, wrapperEl)    — compact widget on search results
+ *   injectListingWidget(result, anchorEl, insertMethod)
+ *     — full widget on car detail page
+ *     — insertMethod: "afterend" (default) | "beforeend"
+ *         "afterend"  → widget als sibling NA anchorEl
+ *         "beforeend" → widget als laatste kind BINNEN anchorEl
+ *
+ *   injectSearchWidget(result, cardEl, wrapperEl)
+ *     — compact widget on search results
  *
  * Injectie-strategie:
  *
  *   DETAILPAGINA  — injectListingWidget:
- *     Widget wordt ná anchorEl geplaatst met insertAdjacentElement("afterend").
- *     anchorEl is de prijs-box (block-level container van de prijs).
- *     Dit werkt identiek voor AutoScout24 en Mobile.de.
+ *     AutoScout24 : anchorEl = price-section, insertMethod = "afterend"
+ *                   → widget belandt als sibling na de prijs-sectie
+ *                     (nog steeds binnen de sticky sidebar).
+ *     Mobile.de   : anchorEl = <section> binnen vip-price-box,
+ *                   insertMethod = "afterend"
+ *                   → widget belandt na de section maar nóg binnen de
+ *                     <article data-testid="vip-price-box">, dus in de
+ *                     rechter sticky sidebar.
+ *                   Fallback: anchorEl = vip-price-box zelf,
+ *                   insertMethod = "beforeend"
+ *                   → widget wordt append’d als laatste kind van de box.
  *
  *   ZOEKPAGINA — injectSearchWidget:
- *     AutoScout24: de article-kaart is de wrapper; widget wordt ná de kaart
- *                  geplaatst als sibling → volledige breedte van de kaart.
- *     Mobile.de  : de <a data-testid="result-listing-N"> is de wrapper;
- *                  widget wordt eveneens ná de wrapper geplaatst als sibling.
- *
- *     wrapperEl  = het element waarná de widget als sibling wordt geplaatst
- *                  (meegegeven vanuit content.js via site.searchCardWrapper()).
- *     cardEl     = het element waarop we checken of de widget al bestaat
- *                  (voorkomt dubbele injectie).
+ *     wrapperEl = het element warna de widget als sibling wordt geplaatst.
  */
 
 "use strict";
@@ -58,9 +64,15 @@
     return `<tr${cls}><td>${labelHtml}</td><td class="cic-val">${valueHtml}</td></tr>`;
   }
 
-  function injectListingWidget(result, anchorEl) {
+  /**
+   * @param {object}  result        - ImportResult van de calculator
+   * @param {Element} anchorEl      - Anchor-element voor injectie
+   * @param {string}  [insertMethod="afterend"] - "afterend" | "beforeend"
+   */
+  function injectListingWidget(result, anchorEl, insertMethod) {
     if (document.getElementById("cic-listing-widget")) return;
 
+    const method = insertMethod ?? "afterend";
     const rows = result.lineItems.map(buildListingRow).join("");
 
     const widget = document.createElement("div");
@@ -69,8 +81,11 @@
       `<div class="cic-header"><span class="cic-title">Importkosten schatting</span></div>` +
       `<table class="cic-table">${rows}</table>`;
 
-    if (anchorEl) anchorEl.insertAdjacentElement("afterend", widget);
-    else document.body.prepend(widget);
+    if (anchorEl) {
+      anchorEl.insertAdjacentElement(method, widget);
+    } else {
+      document.body.prepend(widget);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -95,14 +110,12 @@
   }
 
   /**
-   * @param {object} result     - ImportResult van de calculator
-   * @param {Element} cardEl    - Het kaart-element (voor duplicate-check)
-   * @param {Element} [wrapperEl] - Element waarná de widget als sibling wordt
-   *                               geplaatst. Als niet opgegeven valt terug op
-   *                               appendChild op cardEl (oud gedrag).
+   * @param {object}  result       - ImportResult van de calculator
+   * @param {Element} cardEl       - Het kaart-element (voor duplicate-check)
+   * @param {Element} [wrapperEl]  - Element warna de widget als sibling wordt
+   *                                 geplaatst. Fallback: appendChild op cardEl.
    */
   function injectSearchWidget(result, cardEl, wrapperEl) {
-    // Voorkom dubbele injectie
     if (!cardEl || cardEl.querySelector(".cic-compact")) return;
     if (wrapperEl?.nextElementSibling?.classList?.contains("cic-compact"))
       return;
@@ -115,15 +128,9 @@
       `<div class="cic-compact-title">Geschatte importkosten</div>` +
       `<table class="cic-compact-table">${rows}</table>`;
 
-    if (wrapperEl && wrapperEl !== cardEl) {
-      // Injecteer ná de wrapper als sibling — widget krijgt dezelfde breedte
-      // als de wrapper/kaart doordat het in dezelfde parent-context zit.
-      wrapperEl.insertAdjacentElement("afterend", widget);
-    } else if (wrapperEl) {
-      // wrapperEl === cardEl: ook als sibling plaatsen (Mobile.de & AS24 na refactor)
+    if (wrapperEl) {
       wrapperEl.insertAdjacentElement("afterend", widget);
     } else {
-      // Fallback: append binnen kaart (oud gedrag)
       cardEl.appendChild(widget);
     }
   }
