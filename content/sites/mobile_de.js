@@ -1,6 +1,13 @@
 /**
  * mobile_de.js — Scraper voor Mobile.de
  *
+ * Bevestigde selectors (Mobile.de DOM, juni 2026):
+ *  - Zoekkaart container : [data-testid="result-list-item"]
+ *  - Listing prijs       : [data-testid="prime-price"]
+ *  - Listing titel       : h1[data-testid="classified-heading"] | h1
+ *  - Kenmerken           : [data-testid="feature-list"] dt+dd  |  dl.technical-data dt+dd
+ *  - isListing URL       : /details.html
+ *
  * ListingInfo shape (identiek aan autoscout24.js):
  * {
  *   price:        { value: number, unit: 'EUR' }
@@ -90,61 +97,51 @@
   }
 
   /**
-   * Zoek een rij op in de specificatietabel op de detailpagina.
-   * Mobile.de gebruikt doorgaans <dl> of een tabel-achtige lijst met labels.
+   * Leest een attribuutwaarde uit de detailpagina.
+   * Mobile.de gebruikt [data-testid="feature-list"] met dt/dd-paren,
+   * en soms een dl.technical-data structuur.
    */
   function scrapeDetailValue(labels) {
-    // Variant 1: <dt>/<dd> patroon (nieuw mobile.de design)
-    for (const dt of document.querySelectorAll("dt")) {
-      const text = dt.textContent.trim().toLowerCase();
-      if (labels.some((l) => text.includes(l.toLowerCase()))) {
-        return dt.nextElementSibling?.textContent?.trim() ?? null;
-      }
-    }
-    // Variant 2: data-testid of class-gebaseerde key-value rijen
-    for (const row of document.querySelectorAll(
-      '[data-testid*="detail"], [class*="DataTable"] [class*="row"], [class*="data-row"]',
+    // Variant 1 (huidig design): data-testid="feature-list" met dt/dd
+    for (const dl of document.querySelectorAll(
+      '[data-testid="feature-list"], dl.technical-data, dl'
     )) {
-      const key = row.querySelector(
-        '[class*="key"], [class*="label"], [class*="Key"], [class*="Label"]',
-      );
-      const val = row.querySelector(
-        '[class*="value"], [class*="Value"]',
-      );
-      if (!key || !val) continue;
-      const keyText = key.textContent.trim().toLowerCase();
-      if (labels.some((l) => keyText.includes(l.toLowerCase()))) {
-        return val.textContent.trim();
+      for (const dt of dl.querySelectorAll("dt")) {
+        const text = dt.textContent.trim().toLowerCase();
+        if (labels.some((l) => text.includes(l.toLowerCase()))) {
+          const dd = dt.nextElementSibling;
+          if (dd && dd.tagName === "DD") return dd.textContent.trim();
+        }
       }
     }
-    // Variant 3: vrije <span>-paren in feature-lijsten
-    const spans = Array.from(document.querySelectorAll("span"));
-    for (let i = 0; i < spans.length - 1; i++) {
-      const t = spans[i].textContent.trim().toLowerCase();
-      if (labels.some((l) => t.includes(l.toLowerCase()))) {
-        return spans[i + 1].textContent.trim();
+    // Variant 2: data-testid="feature-label" naast een value-element
+    for (const label of document.querySelectorAll(
+      '[data-testid="feature-label"]'
+    )) {
+      const text = label.textContent.trim().toLowerCase();
+      if (labels.some((l) => text.includes(l.toLowerCase()))) {
+        const val =
+          label.nextElementSibling ??
+          label.parentElement?.querySelector('[data-testid="feature-value"]');
+        if (val) return val.textContent.trim();
       }
     }
     return null;
   }
 
   function scrapePrice() {
-    // Detailpagina: prijs staat in een element met data-testid="price" of class "PriceInfo"
     const candidates = [
+      document.querySelector('[data-testid="prime-price"]'),
       document.querySelector('[data-testid="price"]'),
-      document.querySelector('[class*="PriceInfo"]'),
-      document.querySelector('[class*="price-block"]'),
-      document.querySelector('[class*="VehiclePrice"]'),
-      document.querySelector('[class*="asking-price"]'),
-      document.querySelector('[id*="price"]'),
+      document.querySelector('[data-testid="price-value"]'),
     ];
     for (const el of candidates) {
       if (!el) continue;
       const val = parsePrice(el.textContent);
       if (val && val > 500 && val < 10_000_000) return val;
     }
-    // Fallback: zoek €-teken in de pagina
-    for (const el of document.querySelectorAll("span, strong, b, p")) {
+    // Laatste fallback: €-teken scannen
+    for (const el of document.querySelectorAll("span, strong, b")) {
       const text = el.textContent.trim();
       if (!/[\u20ac]/.test(text) || text.length > 30) continue;
       const val = parsePrice(text);
@@ -155,12 +152,11 @@
 
   function scrapeLocation() {
     const candidates = [
-      document.querySelector('[data-testid="seller-info"]'),
+      document.querySelector('[data-testid="seller-address"]'),
+      document.querySelector('[data-testid="dealer-address"]'),
       document.querySelector('[data-testid="vendor-contact"]'),
-      document.querySelector('[class*="SellerInfo"]'),
-      document.querySelector('[class*="seller-address"]'),
-      document.querySelector('[class*="DealerInfo"]'),
-      document.querySelector('[class*="LocationInfo"]'),
+      document.querySelector('[class*="SellerAddress"]'),
+      document.querySelector('[class*="DealerAddress"]'),
     ];
     for (const el of candidates) {
       if (!el) continue;
@@ -168,7 +164,7 @@
       if (loc) return loc;
     }
     for (const el of document.querySelectorAll(
-      'address, [class*="location"], [class*="Location"]',
+      'address, [class*="location"], [class*="Location"]'
     )) {
       const loc = parseLocationText(el.textContent.trim());
       if (loc) return loc;
@@ -187,7 +183,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Listing (advertentie) pagina
+  // Listing (advertentie) pagina  — URL bevat /details.html
   // ---------------------------------------------------------------------------
 
   function scrapeListingPage() {
@@ -196,22 +192,20 @@
 
     const firstRegRaw = scrapeDetailValue([
       "Erstzulassung",
+      "First Registration",
       "First registration",
-      "Eerste registratie",
     ]);
     const fuelRaw =
-      scrapeDetailValue(["Kraftstoff", "Fuel type", "Brandstof"]) ?? "";
+      scrapeDetailValue(["Kraftstoff", "Fuel type", "Fuel"]) ?? "";
     const co2Raw = scrapeDetailValue([
       "CO2-Emissionen",
       "CO2 emissions",
-      "CO2-uitstoot",
       "CO\u2082",
     ]);
-    const powerRaw = scrapeDetailValue(["Leistung", "Power", "Vermogen"]);
+    const powerRaw = scrapeDetailValue(["Leistung", "Power"]);
     const euroRaw = scrapeDetailValue([
       "Schadstoffklasse",
       "Emission class",
-      "Emissieklasse",
       "Euro",
     ]);
     const mileageRaw = scrapeDetailValue([
@@ -247,25 +241,20 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Zoekresultaten pagina
+  // Zoekresultaten pagina  — URL bevat /fahrzeuge/search.html
   // ---------------------------------------------------------------------------
 
   function scrapePriceFromCard(card) {
     const priceEl =
+      card.querySelector('[data-testid="prime-price"]') ??
       card.querySelector('[data-testid="price"]') ??
-      card.querySelector('[class*="Price"]') ??
-      card.querySelector('[class*="price"]');
+      card.querySelector('[class*="Price"]');
 
     if (priceEl) {
-      const directText = Array.from(priceEl.childNodes)
-        .filter((n) => n.nodeType === Node.TEXT_NODE)
-        .map((n) => n.textContent.trim())
-        .join("");
-      const val = parsePrice(directText || priceEl.textContent);
+      const val = parsePrice(priceEl.textContent);
       if (val && val > 500 && val < 10_000_000) return val;
     }
-
-    for (const el of card.querySelectorAll("span, strong, p")) {
+    for (const el of card.querySelectorAll("span, strong, b, p")) {
       const text = el.textContent.trim();
       if (!/[\u20ac]/.test(text) || text.length > 30) continue;
       const val = parsePrice(text);
@@ -275,11 +264,9 @@
   }
 
   function scrapeSearchPage() {
-    // Mobile.de search: artikelen staan in <article> of <div> met data-testid of class
+    // Bevestigde selector voor Mobile.de zoekresultaten
     const cards = document.querySelectorAll(
-      'article[data-testid], article[class*="result"], article[class*="Result"], ' +
-      '[data-testid="result-item"], [class*="caris-srp"] article, ' +
-      '[class*="VehicleItem"], [class*="vehicle-item"], [class*="SearchResult"]',
+      '[data-testid="result-list-item"]'
     );
     if (!cards.length) return null;
 
@@ -289,21 +276,10 @@
       if (!price) continue;
 
       const allText = card.textContent;
-
       const yearM = allText.match(/(19|20)\d{2}/);
       const year = yearM ? parseInt(yearM[0], 10) : null;
-
-      const fuelEl =
-        card.querySelector('[data-testid*="fuel"]') ??
-        card.querySelector('[class*="FuelType"]') ??
-        card.querySelector('[class*="fuel"]');
-      const fuelType = normalizeFuelType(allText, fuelEl);
-
-      const powerEl =
-        card.querySelector('[class*="Power"]') ??
-        card.querySelector('[class*="power"]');
-      const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
-
+      const fuelType = normalizeFuelType(allText, null);
+      const powerKw = parsePowerKw(allText);
       const loc = parseLocationText(allText);
 
       results.push({

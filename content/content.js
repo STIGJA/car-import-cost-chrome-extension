@@ -54,8 +54,8 @@
       match: () => host.includes("mobile.de"),
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
-      // Mobile.de advertentiepagina's bevatten "/fahrzeug-inserate/" of "/auto/" in het pad
-      isListing: () => /\/fahrzeug-inserate\/|fahrzeugdetails\/|\/auto\/[^/]+-[0-9]+/.test(path),
+      // Mobile.de advertentiepagina's bevatten altijd /details.html
+      isListing: () => path.includes("/details.html"),
     },
   ];
 
@@ -89,12 +89,12 @@
     if (!listing) return;
     const result = calc.calculate(listing, settings);
     if (!result) return;
-    // Probeer platform-specifieke anchor, val terug op eerste prijs-element
+    // AutoScout24: data-testid="price-section"
+    // Mobile.de  : data-testid="prime-price"
     const anchor =
       document.querySelector('[data-testid="price-section"]') ??
-      document.querySelector('[data-testid="price"]') ??
-      document.querySelector('[class*="PriceInfo"]') ??
-      document.querySelector('[class*="VehiclePrice"]');
+      document.querySelector('[data-testid="prime-price"]') ??
+      document.querySelector('[data-testid="price"]');
     if (!anchor) {
       console.warn("[CarImport] prijs-anchor niet gevonden");
     }
