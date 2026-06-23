@@ -79,14 +79,17 @@
        *     </div>
        *   </div>
        *
-       * Strategie: geef de <section> BINNEN vip-price-box terug als anchor
-       * en gebruik insertMethod "afterend" zodat de widget ná die section
-       * maar nog steeds BINNEN de article (en dus de sidebar) belandt.
+       * Prioriteitsvolgorde:
+       *  1. <section> binnen vip-price-box → insertMethod "afterend"
+       *     Plaatst de widget als sibling ná de section, maar nog steeds
+       *     binnen de <article> (en dus de rechterzijbalk). ✓
+       *  2. vip-price-box zelf → insertMethod "beforeend"
+       *     Widget wordt als laatste kind van de article toegevoegd. ✓
+       *  3. vip-price-label → insertMethod "afterend"
+       *     Uiterste fallback; widget komt direct na het prijslabel. ✓
        *
-       * Fallback-keten:
-       *  1. <section> binnen vip-price-box
-       *  2. vip-price-box zelf (insert "beforeend" → append binnen de box)
-       *  3. vip-price-label parent (blok-element)
+       * De vroegere generieke DOM-walk (zoekende naar een breed block-element)
+       * is verwijderd omdat die te vaak in de hoofdkolom terechtkwam.
        */
       listingAnchor: () => {
         const priceBox = document.querySelector(
@@ -97,39 +100,22 @@
           if (section) return section;
           return priceBox;
         }
-        // Meest generieke fallback
-        const priceLabel = document.querySelector(
-          '[data-testid="vip-price-label"]',
-        );
-        if (priceLabel) {
-          let el = priceLabel;
-          while (el.parentElement) {
-            el = el.parentElement;
-            const d = window.getComputedStyle(el).display;
-            if (
-              (d === "block" || d === "flex" || d === "grid") &&
-              el.offsetWidth > 100
-            )
-              return el;
-          }
-          return priceLabel;
-        }
-        return null;
+        // Laatste fallback: direct ná het prijslabel
+        return document.querySelector('[data-testid="vip-price-label"]') ?? null;
       },
       /**
        * insertMethod bepaalt hoe de widget t.o.v. de anchor wordt geplaatst:
-       *  - "afterend"    → als sibling NA de anchor (buiten anchor-element)
-       *  - "beforeend"   → als laatste kind BINNEN de anchor
-       *
-       * Voor Mobile.de willen we de widget binnen vip-price-box houden:
-       *  - anchor = <section>  → afterend plaatst hem na de section, nog binnen de article ✓
-       *  - anchor = <article>  → beforeend plaatst hem als laatste kind van de article ✓
+       *  - "afterend"  → als sibling NA de anchor (buiten anchor-element)
+       *  - "beforeend" → als laatste kind BINNEN de anchor
        */
       listingInsertMethod: (anchorEl) => {
         if (!anchorEl) return "afterend";
         const tag = anchorEl.tagName.toLowerCase();
+        // <section> binnen de article → afterend blijft binnen de article ✓
         if (tag === "section") return "afterend";
+        // vip-price-box article zelf → append als laatste kind ✓
         if (tag === "article") return "beforeend";
+        // vip-price-label of ander element → afterend (dicht bij de prijs)
         return "afterend";
       },
       searchCardWrapper: (cardEl) => cardEl,
