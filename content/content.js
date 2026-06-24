@@ -45,17 +45,30 @@
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
-      // DOM (verified Jun 2026):
-      //   <article data-testid="vip-price-box">
-      //     <section>  ← price + financing
-      //   </article>
-      // Insert after <section> so widget stays inside the article (right column).
+      /**
+       * Anchor resolution order (most to least specific):
+       *  1. <section> inside vip-price-box          → insertMethod: afterend
+       *  2. <div> direct child of vip-price-box     → insertMethod: afterend
+       *  3. vip-price-box article itself             → insertMethod: beforeend
+       *  4. vip-price-label (standalone price el)   → insertMethod: afterend
+       *  5. vehicle-detail-main (last resort)        → insertMethod: afterend
+       */
       listingAnchor: () => {
         const priceBox = document.querySelector(
           'article[data-testid="vip-price-box"]',
         );
-        if (priceBox) return priceBox.querySelector("section") ?? priceBox;
-        return document.querySelector('[data-testid="vip-price-label"]') ?? null;
+        if (priceBox) {
+          const section = priceBox.querySelector("section");
+          if (section) return section;
+          const div = priceBox.querySelector(":scope > div");
+          if (div) return div;
+          return priceBox;
+        }
+        return (
+          document.querySelector('[data-testid="vip-price-label"]') ??
+          document.querySelector('[data-testid="vehicle-detail-main"]') ??
+          null
+        );
       },
       listingInsertMethod: (anchorEl) => {
         if (!anchorEl) return "afterend";

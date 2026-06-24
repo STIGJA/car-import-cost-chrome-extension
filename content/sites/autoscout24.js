@@ -38,23 +38,7 @@
     return digits ? parseInt(digits, 10) : null;
   }
 
-  /**
-   * Bepaalt brandstoftype uit een string.
-   *
-   * Op de zoekpagina wordt allText (hele kaart) meegegeven, maar de omschrijving
-   * kan woorden als "Elektrische Sitzeinstellung" bevatten die niets met het
-   * brandstoftype te maken hebben.
-   *
-   * Strategie:
-   *  1. Probeer een specifiek brandstof-element te lezen (data-testid of class).
-   *  2. Val terug op de volledige tekst, maar pas dan alleen op duidelijke
-   *     woorden die als zelfstandig token staan (bijv. "Diesel" als woord,
-   *     niet als onderdeel van "Dieselpartikelfilter").
-   *  3. "elektrisch" / "electric" / "BEV" als zelfstandige term, NIET als
-   *     onderdeel van bijv. "elektrische stoelverstelling".
-   */
   function normalizeFuelType(raw, fuelEl) {
-    // Eerst: specifiek element (meest betrouwbaar)
     if (fuelEl) {
       const t = fuelEl.textContent.trim().toLowerCase();
       if (t.includes("elektr") || t.includes("electric") || t.includes("bev"))
@@ -62,11 +46,8 @@
       if (t.includes("diesel")) return "diesel";
       if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
     }
-    // Fallback op vrije tekst — gebruik woordgrens-matching voor elektrisch
     const l = (raw ?? "").toLowerCase();
-    // Elektrisch: alleen als zelfstandig woord/afkorting, NIET als bijvoeglijk naamwoord
     if (/\belectric\b|\bbev\b|\bev\b/.test(l)) return "electric";
-    // "Elektro" (Duits voor elektrisch rijden) wel, "elektrische" (bijv. stoel) niet
     if (/\belektro\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
     if (l.includes("hybrid") || l.includes("phev")) return "hybrid";
@@ -142,6 +123,16 @@
     };
   }
 
+  /**
+   * Detect country from location text + current hostname.
+   *
+   * Hostname is the most reliable signal for the source country:
+   *   autoscout24.be  → BE
+   *   autoscout24.de  → DE
+   *   autoscout24.fr  → FR
+   *
+   * Postcode is extracted for completeness but country is driven by TLD.
+   */
   function scrapeLocation() {
     const candidates = [
       document.querySelector('[data-testid="seller-info"]'),
@@ -161,16 +152,34 @@
       const loc = parseLocationText(el.textContent.trim());
       if (loc) return loc;
     }
-    return { postcode: null, country: null };
+    // Fallback: derive country from hostname TLD
+    return { postcode: null, country: countryFromHostname() };
+  }
+
+  function countryFromHostname() {
+    const host = window.location.hostname;
+    if (host.endsWith(".fr")) return "FR";
+    if (host.endsWith(".be")) return "BE";
+    return "DE"; // .de or .com
   }
 
   function parseLocationText(text) {
     if (!text) return null;
-    const de = text.match(/\b(\d{5})\b/);
-    if (de) return { postcode: de[1], country: "DE" };
-    const be = text.match(/\b([1-9]\d{3})\b/);
-    if (be && parseInt(be[1], 10) < 9999)
-      return { postcode: be[1], country: "BE" };
+
+    // German postcode: exactly 5 digits, starts 01000–99999
+    // French postcode: also 5 digits, starts 01000–99999
+    // Belgian postcode: 4 digits, 1000–9999
+    // → Use hostname TLD to disambiguate DE vs FR 5-digit postcodes.
+    const host = window.location.hostname;
+
+    const fiveDigit = text.match(/\b(\d{5})\b/);
+    if (fiveDigit) {
+      const country = host.endsWith(".fr") ? "FR" : "DE";
+      return { postcode: fiveDigit[1], country };
+    }
+    const fourDigit = text.match(/\b([1-9]\d{3})\b/);
+    if (fourDigit && parseInt(fourDigit[1], 10) <= 9999)
+      return { postcode: fourDigit[1], country: "BE" };
     return null;
   }
 
@@ -183,45 +192,74 @@
     if (!price) return null;
 
     const firstRegRaw = scrapeDetailValue([
+      // DE
       "Erstzulassung",
+      // EN
       "First registration",
+      // NL
       "Eerste registratie",
+      // FR — autoscout24.fr uses this exact label
       "1\u00e8re mise en circulation",
+      "Mise en circulation",
     ]);
     const fuelRaw =
       scrapeDetailValue([
+        // DE
         "Kraftstoff",
+        // EN
         "Fuel type",
+        // NL
         "Brandstof",
+        // FR
         "Carburant",
+        "Type de carburant",
       ]) ?? "";
     const co2Raw = scrapeDetailValue([
+      // DE
       "CO2-Emissionen",
+      // EN
       "CO2 emissions",
+      // NL
       "CO2-uitstoot",
+      // FR — autoscout24.fr uses "CO2 (mixte)" or "\u00c9missions CO2"
       "\u00c9missions CO2",
+      "Emissions CO2",
+      "CO2 (mixte)",
       "CO\u2082",
     ]);
     const powerRaw = scrapeDetailValue([
+      // DE
       "Leistung",
+      // EN
       "Power",
+      // NL
       "Vermogen",
+      // FR
       "Puissance",
     ]);
     const euroRaw = scrapeDetailValue([
+      // DE
       "Schadstoffklasse",
+      // EN
       "Emission class",
+      // NL
       "Emissieklasse",
+      // FR
       "Classe d\u2019\u00e9mission",
+      "Classe d'emission",
+      "Norme Euro",
       "Euro",
     ]);
     const mileageRaw = scrapeDetailValue([
+      // DE
       "Kilometerstand",
+      // EN
       "Mileage",
+      // FR
       "Kilom\u00e9trage",
+      "Kilometrage",
     ]);
 
-    // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
     const fuelType = normalizeFuelType(fuelRaw, null);
     const powerKw = parsePowerKw(powerRaw);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
@@ -295,7 +333,6 @@
       const yearM = allText.match(/(19|20)\d{2}/);
       const year = yearM ? parseInt(yearM[0], 10) : null;
 
-      // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden
       const fuelEl =
         card.querySelector('[data-testid="listing-item-fuel-type"]') ??
         card.querySelector('[data-testid="fuel-type"]') ??
@@ -303,13 +340,14 @@
         card.querySelector('[class*="fuel"]');
       const fuelType = normalizeFuelType(allText, fuelEl);
 
-      // Vermogen parsen uit kaart voor betere CO2 schatting
       const powerEl =
         card.querySelector('[data-testid="listing-item-power"]') ??
         card.querySelector('[class*="Power"]') ??
         card.querySelector('[class*="power"]');
       const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
 
+      // Country from TLD (most reliable), postcode from text
+      const country = countryFromHostname();
       const loc = parseLocationText(allText);
 
       results.push({
@@ -322,7 +360,7 @@
         euroNorm: null,
         co2: buildCO2Field(fuelType, null, powerKw, year, null),
         postcode: loc?.postcode ?? null,
-        country: loc?.country ?? "DE",
+        country,
       });
     }
     return results.length ? results : null;
