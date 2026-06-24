@@ -30,7 +30,13 @@
       match: () => host.includes("autoscout24"),
       scraper: () => window.CIC_AS24,
       calc: () => window.CIC_NL,
-      isListing: () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
+      // Listing URL path per locale:
+      //   DE: /angebote/
+      //   FR: /offres/
+      //   BE: /aanbod/ (NL) or /annonces/ (FR)
+      //   IT: /annunci/
+      isListing: () =>
+        /\/(angebote|annonces|aanbod|annunci|offres)\//.test(path),
       listingAnchor: () =>
         document.querySelector('[data-testid="price-section"]'),
       listingInsertMethod: () => "afterend",
