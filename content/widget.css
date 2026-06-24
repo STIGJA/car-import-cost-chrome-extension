@@ -118,6 +118,7 @@
 }
 
 .cic-compact-total td {
+  font-size:16px;
   font-weight: 700;
   border-top: 1px solid #ced4da;
   padding-top: 4px;
