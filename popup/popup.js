@@ -142,8 +142,8 @@ document.getElementById("calculateBtn").addEventListener("click", () => {
   const transport = currentTransMap[country] ?? currentTransMap["OTHER"] ?? 600;
 
   const vat = isNew ? Math.round(price * 0.21) : 0;
-  const gross = bpmBruto(co2, fuelType);
-  const bpm = bpmNetto(co2, fuelType, ageYears);
+  const gross = bpmBruto(co2, fuelType, regYear);
+  const bpm = bpmNetto(co2, fuelType, ageYears, regYear);
 
   const total = Math.round(price + vat + bpm + transport + currentFixed);
 
@@ -152,7 +152,7 @@ document.getElementById("calculateBtn").addEventListener("click", () => {
   if (isNew) rows.push(["BTW (21%)", fmt(vat), null]);
 
   if (fuelType === "electric") {
-    rows.push(["BPM", "\u2014", null]);
+    rows.push(["BPM", fmt(bpm), { valueTooltip: `Starttarief ${regYear ?? new Date().getFullYear()}` }]);
   } else {
     const bpmTooltip = `o.b.v. ${co2}\u00a0g/km CO\u2082 (bruto ${fmt(gross)})`;
     const bpmWarning = co2Estimated
