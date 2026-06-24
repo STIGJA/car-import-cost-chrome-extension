@@ -17,10 +17,10 @@
   // Formule per schijf: (co2 - from) * rate + base
   // -------------------------------------------------------------------------
   const BPM_TABLE = [
-    { from: 0, to: 77, base: 687, rate: 2 },
-    { from: 77, to: 100, base: 841, rate: 82 },
-    { from: 100, to: 139, base: 2727, rate: 181 },
-    { from: 139, to: 155, base: 9786, rate: 297 },
+    { from: 0,   to: 77,   base: 687,   rate: 2   },
+    { from: 77,  to: 100,  base: 841,   rate: 82  },
+    { from: 100, to: 139,  base: 2727,  rate: 181 },
+    { from: 139, to: 155,  base: 9786,  rate: 297 },
     { from: 155, to: null, base: 14538, rate: 594 },
   ];
 
@@ -28,13 +28,36 @@
   const DIESEL_SURCHARGE_RATE = 114.83;
   const DIESEL_SURCHARGE_FROM = 69;
 
+  // BPM starttarief per jaar voor elektrische voertuigen (Wet BPM 1992)
+  // Geldt voor nieuwe én gebruikte EV's — bij gebruikte auto's wordt het
+  // starttarief ook afgeschreven via de normale forfaitaire tabel.
+  const EV_STARTTARIEF = {
+    2025: 667,
+    2026: 687,
+    // Voeg toekomstige jaren hier toe
+  };
+  const EV_STARTTARIEF_DEFAULT = 687;
+
   // -------------------------------------------------------------------------
-  // Forfaitaire afschrijvingstabel BPM (Belastingdienst)
-  // Index = leeftijd in volle jaren, waarde = afgeschreven fractie
+  // Forfaitaire afschrijvingstabel BPM (Wet BPM 1992, Bijlage)
+  // Indeling per maandband: [vanMaand, totMaand, basisPct, incrementPerMaand]
+  // Gebruik: depreciationFactor(ageYears) → fractie [0.00 – 0.97]
   // -------------------------------------------------------------------------
-  const DEPRECIATION = [
-    0, 0.09, 0.17, 0.25, 0.33, 0.41, 0.5, 0.57, 0.63, 0.68, 0.73, 0.77, 0.81,
-    0.84, 0.87, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99, 1.0,
+  const DEPRECIATION_TABLE = [
+    [0,    1,    0,    4.00  ],
+    [1,    3,    4,    3.00  ],
+    [3,    5,    10,   2.50  ],
+    [5,    9,    15,   2.25  ],
+    [9,    18,   24,   1.444 ],
+    [18,   30,   37,   0.833 ],
+    [30,   42,   47,   0.833 ],
+    [42,   54,   57,   0.750 ],
+    [54,   66,   66,   0.500 ],
+    [66,   78,   72,   0.416 ],
+    [78,   90,   77,   0.416 ],
+    [90,   102,  82,   0.333 ],
+    [102,  114,  86,   0.333 ],
+    [114,  Infinity, 90, 0.083],
   ];
 
   // -------------------------------------------------------------------------
@@ -42,6 +65,8 @@
   // -------------------------------------------------------------------------
   const CO2_FALLBACK = {
     petrol: {
+      2026: 135,
+      2025: 136,
       2024: 138,
       2023: 142,
       2022: 146,
@@ -64,6 +89,8 @@
       2005: 232,
     },
     diesel: {
+      2026: 125,
+      2025: 126,
       2024: 128,
       2023: 132,
       2022: 136,
@@ -86,6 +113,8 @@
       2005: 222,
     },
     hybrid: {
+      2026: 92,
+      2025: 93,
       2024: 95,
       2023: 98,
       2022: 102,
@@ -109,8 +138,20 @@
   // Functies
   // -------------------------------------------------------------------------
 
-  function bpmBruto(co2, fuelType) {
-    if (!co2 || co2 <= 0 || fuelType === "electric") return 0;
+  /**
+   * Bereken bruto BPM op basis van CO2-uitstoot en brandstoftype.
+   * Elektrische voertuigen betalen alleen het starttarief (geen CO2-schijven).
+   * @param {number} co2 - CO2-uitstoot in g/km
+   * @param {string} fuelType - 'petrol' | 'diesel' | 'hybrid' | 'electric'
+   * @param {number} [registrationYear] - Bouwjaar voor EV-starttarief opzoeken
+   */
+  function bpmBruto(co2, fuelType, registrationYear) {
+    if (fuelType === "electric") {
+      const year = registrationYear ?? new Date().getFullYear();
+      return EV_STARTTARIEF[year] ?? EV_STARTTARIEF_DEFAULT;
+    }
+    if (!co2 || co2 <= 0) return 0;
+
     let bpm = 0;
     for (const { from, to, base, rate } of BPM_TABLE) {
       if (co2 > from) {
@@ -124,23 +165,49 @@
     return Math.round(bpm);
   }
 
+  /**
+   * Bereken de forfaitaire afschrijvingsfractie op basis van leeftijd in jaren.
+   * Gebruikt de officiële maandband-tabel (Wet BPM 1992, Bijlage).
+   * @param {number} ageYears - Leeftijd van het voertuig in jaren (decimaal)
+   * @returns {number} Afgeschreven fractie tussen 0.00 en 0.97
+   */
   function depreciationFactor(ageYears) {
-    if (ageYears >= 25) return 1.0; // officieel: geen BPM bij ≥ 25 jaar
-    const idx = Math.floor(ageYears);
-    if (idx >= DEPRECIATION.length) return 1.0;
-    return DEPRECIATION[idx];
+    if (ageYears >= 25) return 1.0; // Geen BPM verschuldigd bij ≥ 25 jaar
+    const ageMonths = ageYears * 12;
+    // Voertuig ouder dan 114 maanden (9,5 jaar): 90% + 0,083% per extra maand, max 97%
+    if (ageMonths >= 114) {
+      const extra = Math.floor(ageMonths) - 114;
+      return Math.min((90 + extra * 0.083) / 100, 0.97);
+    }
+    for (const [min, max, base, incr] of DEPRECIATION_TABLE) {
+      if (ageMonths >= min && ageMonths < max) {
+        const monthsInBand = Math.floor(ageMonths) - min;
+        return (base + monthsInBand * incr) / 100;
+      }
+    }
+    return 0;
   }
 
-  function bpmNetto(co2, fuelType, ageYears) {
+  /**
+   * Bereken netto BPM (na forfaitaire afschrijving).
+   * @param {number} co2
+   * @param {string} fuelType
+   * @param {number} ageYears
+   * @param {number} [registrationYear]
+   */
+  function bpmNetto(co2, fuelType, ageYears, registrationYear) {
     return Math.round(
-      bpmBruto(co2, fuelType) * (1 - depreciationFactor(ageYears)),
+      bpmBruto(co2, fuelType, registrationYear) * (1 - depreciationFactor(ageYears)),
     );
   }
 
+  /**
+   * Schat CO2-uitstoot op basis van brandstoftype en bouwjaar (fallback).
+   */
   function estimateCO2(fuelType, year) {
     if (fuelType === "electric") return 0;
     const table = CO2_FALLBACK[fuelType] ?? CO2_FALLBACK.petrol;
-    const y = Math.max(2005, Math.min(2024, year ?? 2020));
+    const y = Math.max(2005, Math.min(2026, year ?? 2020));
     return table[y] ?? 155;
   }
 
@@ -153,7 +220,8 @@
     depreciationFactor,
     estimateCO2,
     BPM_TABLE,
-    DEPRECIATION,
+    DEPRECIATION_TABLE,
     CO2_FALLBACK,
+    EV_STARTTARIEF,
   };
 })(typeof window !== "undefined" ? window : globalThis);
