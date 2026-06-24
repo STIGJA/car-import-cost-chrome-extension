@@ -38,20 +38,19 @@
     },
     {
       name: "mobile.de",
-      match: () =>
-        host === "suchen.mobile.de" ||
-        host === "www.mobile.de" ||
-        host === "mobile.de",
+      // Only activate on suchen.mobile.de — www.mobile.de and mobile.de
+      // are the homepage/redirects and contain no car cards.
+      match: () => host === "suchen.mobile.de",
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
       /**
        * Anchor resolution order (most to least specific):
-       *  1. <section> inside vip-price-box          → insertMethod: afterend
-       *  2. <div> direct child of vip-price-box     → insertMethod: afterend
-       *  3. vip-price-box article itself             → insertMethod: beforeend
-       *  4. vip-price-label (standalone price el)   → insertMethod: afterend
-       *  5. vehicle-detail-main (last resort)        → insertMethod: afterend
+       *  1. <section> inside vip-price-box          → afterend
+       *  2. <div> direct child of vip-price-box     → afterend
+       *  3. vip-price-box article itself             → beforeend
+       *  4. vip-price-label (standalone price el)   → afterend
+       *  5. vehicle-detail-main (last resort)        → afterend
        */
       listingAnchor: () => {
         const priceBox = document.querySelector(
@@ -90,6 +89,12 @@
   const calc = site.calc();
   const isListing = site.isListing();
 
+  // For mobile.de: only run search scraper on the actual search results page.
+  const isSearchPage =
+    site.name === "mobile.de"
+      ? path.startsWith("/fahrzeuge/search.html")
+      : true;
+
   if (!scraper) {
     console.error("[CarImport] Scraper not loaded for:", site.name);
     return;
@@ -98,6 +103,9 @@
     console.error("[CarImport] Calculator (CIC_NL) not loaded");
     return;
   }
+
+  // Bail out silently if not on a listing or search page we handle.
+  if (!isListing && !isSearchPage) return;
 
   console.log(
     `[CarImport] Active on ${site.name} —`,
