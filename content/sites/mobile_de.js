@@ -4,24 +4,23 @@
  * Selectors geverifieerd via opgeslagen detailpagina (Mazda CX-5, juni 2026).
  *
  * DETAILPAGINA (suchen.mobile.de/fahrzeuge/details.html?id=XXXXX):
- *   Prijs            : [data-testid="vip-price-label"]        → "16.990\u00a0€"
- *   Kilometerstand   : [data-testid="mileage-item"]           → label+waarde als één blok
- *   Vermogen         : [data-testid="power-item"]             → "Leistung110\u00a0kW\u00a0(150\u00a0PS)"
- *   Brandstof        : [data-testid="fuel-item"]              → "KraftstoffartDiesel"
- *   Motortype        : [data-testid="envkv.engineType-item"]  → "AntriebsartVerbrennungsmotor"
- *   CO2              : [data-testid="envkv.co2Emissions-item"]→ "CO\u2082-Emissionen (komb.)\u00b2143\u00a0g/km"
- *   Eerste registratie: [data-testid="firstRegistration-item"] → "Erstzulassung03/2019"
- *   Euro-norm        : [data-testid="emissionClass-item"]     → "SchadstoffklasseEuro6"
- *   Adres (locatie)  : [data-testid="vip-dealer-box-seller-address2"] → "DE-16244 Schorfheide"
+ *   Prijs (prim.)    : [data-testid="vip-price-label"]        → "16.990\u00a0€"
+ *   Prijs (alt.)     : [data-testid="price-label"],
+ *                      [data-testid="vip-price"],
+ *                      [class*="price"] containing € sign
+ *   Kilometerstand   : [data-testid="mileage-item"]
+ *   Vermogen         : [data-testid="power-item"]
+ *   Brandstof        : [data-testid="envkv.engineType-item"] / [data-testid="fuel-item"]
+ *   CO2              : [data-testid="envkv.co2Emissions-item"]
+ *   Eerste registratie: [data-testid="firstRegistration-item"]
+ *   Euro-norm        : [data-testid="emissionClass-item"]
+ *   Adres (locatie)  : [data-testid="vip-dealer-box-seller-address2"]
  *                      fallback: [data-testid="vehicle-location-badge"]
  *
  * ZOEKPAGINA (suchen.mobile.de/fahrzeuge/search.html):
- *   Kaart container  : [data-testid^="result-listing-"] gefilterd op /^result-listing-\d+$/
- *   Prijs            : [data-testid="price-label"]            → "14.990 €"
+ *   Kaart container  : [data-testid^="result-listing-"] filtered on /^result-listing-\d+$/
+ *   Prijs            : [data-testid="price-label"]
  *   Kenmerken        : [data-testid="listing-details-attributes"]
- *                      → "Unfallfrei • EZ 10/2013 • 102.696 km • 162 kW (220 PS) • Benzin"
- *
- * ListingInfo shape (identiek aan autoscout24.js).
  */
 
 "use strict";
@@ -48,10 +47,6 @@
     return digits ? parseInt(digits, 10) : null;
   }
 
-  /**
-   * Kloon het element, verwijder <sup>, <button> en <svg> (voetnoten / iconen),
-   * geef genormaliseerde tekst terug.
-   */
   function cleanText(el) {
     if (!el) return "";
     const clone = el.cloneNode(true);
@@ -59,24 +54,9 @@
     return clone.textContent.replace(/\s+/g, " ").trim();
   }
 
-  /**
-   * Lees de waarde uit een Mobile.de *-item element.
-   *
-   * Mobile.de structuur (geverifieerd op detailpagina):
-   *   De container [data-testid="X-item"] bevat label én waarde als aaneengesloten
-   *   tekst: bijv. "Kilometerstand135.000\u00a0km". Er is geen aparte <dd>.
-   *
-   * Strategie (meest robuust → minst robuust):
-   *  1. <dt> / <dd> paar binnen het element (zal werken als Mobile.de ooit
-   *     naar semantische markup overschakelt).
-   *  2. Knip de bekende labelstring weg en geef de rest.
-   *  3. Geef de volledige tekst terug (caller bepaalt zelf wat te doen).
-   */
   function readItemValue(testid, labelStrings) {
     const el = document.querySelector(`[data-testid="${testid}"]`);
     if (!el) return null;
-
-    // Strategie 1: semantische <dt>/<dd>
     const dt = el.querySelector("dt");
     if (dt) {
       const dd = dt.nextElementSibling;
@@ -84,8 +64,6 @@
     }
     const dd = el.querySelector("dd");
     if (dd) return cleanText(dd);
-
-    // Strategie 2: label weghalen uit gecleande tekst
     const full = cleanText(el);
     if (labelStrings) {
       for (const lbl of labelStrings) {
@@ -96,15 +74,12 @@
         }
       }
     }
-
-    // Strategie 3: geef volledige tekst (label + waarde) terug
     return full || null;
   }
 
   function normalizeFuelType(raw) {
     if (!raw) return "petrol";
     const l = raw.toLowerCase();
-    // Elektrisch — let op: "Verbrennungsmotor" moet NIET matchen op elektrisch
     if (/elektromotor|\belektro\b|\bbev\b|\bev\b|\belectric\b/.test(l)) return "electric";
     if (/diesel/.test(l)) return "diesel";
     if (/hybrid|phev|plug.?in/.test(l)) return "hybrid";
@@ -147,40 +122,52 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Detailpagina — suchen.mobile.de/fahrzeuge/details.html?id=XXXXX
+  // Detailpagina
   // ---------------------------------------------------------------------------
 
+  function scrapePrice() {
+    // Try primary testid first, then several fallbacks
+    const selectors = [
+      '[data-testid="vip-price-label"]',
+      '[data-testid="price-label"]',
+      '[data-testid="vip-price"]',
+      '[data-testid="vehicle-price"]',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const val = parsePrice(cleanText(el));
+      if (val) return val;
+    }
+    // Broad fallback: any element with class containing "price" that has a € sign
+    for (const el of document.querySelectorAll('[class*="price"], [class*="Price"]')) {
+      const text = cleanText(el);
+      if (!/[\u20ac]/.test(text)) continue;
+      if (text.length > 40) continue;
+      const val = parsePrice(text);
+      if (val) return val;
+    }
+    return null;
+  }
+
   function scrapeListingPage() {
-    // --- Prijs ---
-    // [data-testid="vip-price-label"] → "16.990\u00a0€"
-    const priceEl = document.querySelector('[data-testid="vip-price-label"]');
-    const price = parsePrice(priceEl ? cleanText(priceEl) : null);
+    const price = scrapePrice();
     if (!price) {
-      console.warn("[CarImport] mobile.de: vip-price-label niet gevonden");
+      console.warn("[CarImport] mobile.de: prijs niet gevonden");
       return null;
     }
 
-    // --- Kilometerstand ---
-    // [data-testid="mileage-item"] → "Kilometerstand135.000\u00a0km"
-    const mileageRaw = readItemValue("mileage-item", ["Kilometerstand", "Mileage"]);
+    const mileageRaw = readItemValue("mileage-item", ["Kilometerstand", "Mileage", "Km-Stand"]);
     const mileage = mileageRaw ? parseNumber(mileageRaw) : null;
 
-    // --- Vermogen ---
-    // [data-testid="power-item"] → "Leistung110\u00a0kW\u00a0(150\u00a0PS)"
-    const powerRaw = readItemValue("power-item", ["Leistung", "Power"]);
+    const powerRaw = readItemValue("power-item", ["Leistung", "Power", "Puissance"]);
     const powerKw = parsePowerKw(powerRaw);
 
-    // --- Brandstof ---
-    // Voorkeur: [data-testid="envkv.engineType-item"] → "AntriebsartVerbrennungsmotor" / "Elektromotor"
-    // Fallback : [data-testid="fuel-item"]           → "KraftstoffartDiesel"
     const engineRaw =
       readItemValue("envkv.engineType-item", ["Antriebsart"]) ??
-      readItemValue("fuel-item", ["Kraftstoffart", "Fuel type"]);
+      readItemValue("fuel-item", ["Kraftstoffart", "Fuel type", "Carburant"]);
     const fuelType = normalizeFuelType(engineRaw);
 
-    // --- CO2 ---
-    // [data-testid="envkv.co2Emissions-item"] → "CO\u2082-Emissionen (komb.)\u00b2143\u00a0g/km"
-    // Na cleanText (sup verwijderd): "CO\u2082-Emissionen (komb.) 143 g/km"
     const co2Raw = readItemValue("envkv.co2Emissions-item", [
       "CO\u2082-Emissionen (komb.)",
       "CO2-Emissionen",
@@ -188,60 +175,52 @@
     ]);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
 
-    // --- Eerste registratie ---
-    // [data-testid="firstRegistration-item"] → "Erstzulassung03/2019"
-    // Waarde is direct het datumgedeelte na het label.
+    // Eerste registratie: probeer meerdere testids
     let firstRegDate = null;
-    const regRaw = readItemValue("firstRegistration-item", [
-      "Erstzulassung",
-      "First registration",
-    ]);
-    if (regRaw) {
-      // Formaat: "03/2019" of "MM/YYYY"
-      const m = regRaw.match(/(\d{1,2}[\/.\-]\d{4})/);
+    const regTestids = [
+      ["firstRegistration-item", ["Erstzulassung", "First registration", "Mise en circulation"]],
+      ["firstRegistration", ["Erstzulassung", "First registration"]],
+    ];
+    for (const [tid, labels] of regTestids) {
+      const raw = readItemValue(tid, labels);
+      if (!raw) continue;
+      const m = raw.match(/(\d{1,2}[\/.\-]\d{4})/);
       if (m) {
-        // Normaliseer naar MM/YYYY
-        const normalized = m[1].replace(/[.\-]/, "/");
-        firstRegDate = { value: normalized, unit: "MM/YYYY" };
+        firstRegDate = { value: m[1].replace(/[.\-]/, "/"), unit: "MM/YYYY" };
+        break;
       }
     }
-    // Fallback: zoek in paginatekst naar "EZ MM/YYYY"
+    // Fallback: scan body text for "EZ MM/YYYY"
     if (!firstRegDate) {
       const ezM = document.body.innerText.match(/EZ\s+(\d{2}\/\d{4})/);
       if (ezM) firstRegDate = { value: ezM[1], unit: "MM/YYYY" };
     }
 
-    // --- Euro-norm ---
-    // [data-testid="emissionClass-item"] → "SchadstoffklasseEuro6"
     const euroRaw = readItemValue("emissionClass-item", [
       "Schadstoffklasse",
       "Emission class",
+      "Norme Euro",
     ]);
-    // Normaliseer naar "Euro6" / "Euro5" etc.
     const euroNorm = euroRaw
       ? (euroRaw.match(/Euro\s*\d[a-z]?/i)?.[0] ?? null)
       : null;
 
-    // --- Locatie ---
-    // Voorkeur: [data-testid="vip-dealer-box-seller-address2"] → "DE-16244 Schorfheide"
-    // Fallback : [data-testid="vehicle-location-badge"]
-    //            [data-testid="seller-title-address"]
     const addrSelectors = [
       '[data-testid="vip-dealer-box-seller-address2"]',
       '[data-testid="vehicle-location-badge"]',
       '[data-testid="seller-title-address"]',
+      '[data-testid="seller-address"]',
     ];
     let postcode = null;
-    let country = null;
+    let country = "DE"; // mobile.de is het Duitse platform
     for (const sel of addrSelectors) {
       const el = document.querySelector(sel);
       if (!el) continue;
       const text = cleanText(el);
-      // Patroon: optioneel "DE-" gevolgd door 5 cijfers
       const m = text.match(/(?:([A-Z]{2})-)?\b(\d{5})\b/);
       if (m) {
         postcode = m[2];
-        country = m[1] ?? "DE"; // mobile.de is Duits platform
+        country = m[1] ?? "DE";
         break;
       }
     }
@@ -267,55 +246,48 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Zoekpagina — suchen.mobile.de/fahrzeuge/search.html
+  // Zoekpagina
   // ---------------------------------------------------------------------------
 
-  /**
-   * Parseer de listing-details-attributes tekst van een zoekkaart.
-   * Formaat: "Unfallfrei • EZ 10/2013 • 102.696 km • 162 kW (220 PS) • Benzin"
-   */
   function parseAttributesText(text) {
     if (!text) return {};
     const result = {};
-
-    // Eerste registratie
     const ezM = text.match(/EZ\s+(\d{1,2}[\/.\-]\d{4})/);
     if (ezM) {
       const norm = ezM[1].replace(/[.\-]/, "/");
       result.firstRegDate = { value: norm, unit: "MM/YYYY" };
     }
-
-    // Kilometerstand
     const kmM = text.match(/(\d[\d.,]*)\s*km\b/i);
     if (kmM) result.mileage = { value: parseNumber(kmM[1]), unit: "km" };
-
-    // Vermogen
     const kwM = text.match(/(\d+)\s*kW/);
     if (kwM) result.powerKw = { value: parseInt(kwM[1], 10), unit: "kW" };
-
-    // Brandstof
     const fuelM = text.match(
       /\b(Benzin|Diesel|Elektro|Hybrid|PHEV|Plug-in|Wasserstoff)\b/i,
     );
     if (fuelM) result.fuelType = { value: normalizeFuelType(fuelM[1]) };
-
     return result;
   }
 
   function scrapeSearchPage() {
-    /**
-     * Mobile.de zoekkaarten: <a data-testid="result-listing-N">
-     * N loopt van 1 oplopend. Afbeeldingcontainers heten result-listing-image-N.
-     * We filteren op exact patroon /^result-listing-\d+$/ om die uit te sluiten.
-     */
-    const cards = Array.from(
+    // Primary selector: <a data-testid="result-listing-N">
+    // Also try <article> wrappers in case mobile.de restructures the card
+    const primaryCards = Array.from(
       document.querySelectorAll('[data-testid^="result-listing-"]'),
     ).filter((el) =>
       /^result-listing-\d+$/.test(el.getAttribute("data-testid")),
     );
 
+    // Fallback: <article> cards that contain a price-label
+    const fallbackCards = primaryCards.length === 0
+      ? Array.from(document.querySelectorAll(
+          'article[class*="result"], article[class*="listing"], article[data-testid^="ad-"]'
+        )).filter((el) => el.querySelector('[data-testid="price-label"]'))
+      : [];
+
+    const cards = primaryCards.length ? primaryCards : fallbackCards;
+
     if (!cards.length) {
-      console.warn("[CarImport] mobile.de: geen result-listing-N kaarten gevonden");
+      console.warn("[CarImport] mobile.de: geen kaarten gevonden (primary + fallback)");
       return null;
     }
 
@@ -323,19 +295,16 @@
 
     const results = [];
     for (const card of cards) {
-      // Prijs
-      const priceEl = card.querySelector('[data-testid="price-label"]');
+      const priceEl =
+        card.querySelector('[data-testid="price-label"]') ??
+        card.querySelector('[data-testid="price"]');
       const price = parsePrice(priceEl ? cleanText(priceEl) : null);
       if (!price) continue;
 
-      // Kenmerken
-      const attrsEl = card.querySelector(
-        '[data-testid="listing-details-attributes"]',
-      );
-      const attrsText = attrsEl ? cleanText(attrsEl) : "";
+      const attrsEl = card.querySelector('[data-testid="listing-details-attributes"]');
+      const attrsText = attrsEl ? cleanText(attrsEl) : cleanText(card);
       const attrs = parseAttributesText(attrsText);
 
-      // Locatie: 5-cijferige postcode in kaart-tekst
       const cardText = cleanText(card);
       const postcodeM = cardText.match(/\b(\d{5})\b/);
       const postcode = postcodeM ? postcodeM[1] : null;
@@ -356,13 +325,11 @@
         euroNorm: null,
         co2: buildCO2Field(fuelType, null, powerKw, year, null),
         postcode,
-        country: postcode ? "DE" : null,
+        country: "DE",
       });
     }
 
-    console.log(
-      `[CarImport] mobile.de: ${results.length} resultaten met prijs`,
-    );
+    console.log(`[CarImport] mobile.de: ${results.length} resultaten met prijs`);
     return results.length ? results : null;
   }
 

@@ -30,11 +30,12 @@
       match: () => host.includes("autoscout24"),
       scraper: () => window.CIC_AS24,
       calc: () => window.CIC_NL,
-      // Listing URL path per locale:
-      //   DE: /angebote/
-      //   FR: /offres/
-      //   BE: /aanbod/ (NL) or /annonces/ (FR)
-      //   IT: /annunci/
+      // Listing URL path segments per locale:
+      //   DE : /angebote/
+      //   FR : /offres/
+      //   BE NL: /aanbod/
+      //   BE FR: /annonces/
+      //   IT : /annunci/
       isListing: () =>
         /\/(angebote|annonces|aanbod|annunci|offres)\//.test(path),
       listingAnchor: () =>
@@ -50,14 +51,6 @@
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
-      /**
-       * Anchor resolution order (most to least specific):
-       *  1. <section> inside vip-price-box          → afterend
-       *  2. <div> direct child of vip-price-box     → afterend
-       *  3. vip-price-box article itself             → beforeend
-       *  4. vip-price-label (standalone price el)   → afterend
-       *  5. vehicle-detail-main (last resort)        → afterend
-       */
       listingAnchor: () => {
         const priceBox = document.querySelector(
           'article[data-testid="vip-price-box"]',
@@ -95,11 +88,16 @@
   const calc = site.calc();
   const isListing = site.isListing();
 
-  // For mobile.de: only run search scraper on the actual search results page.
-  const isSearchPage =
-    site.name === "mobile.de"
-      ? path.startsWith("/fahrzeuge/search.html")
-      : true;
+  // For mobile.de: only run the search scraper on the actual search results page.
+  // For autoscout24: /lst/ (FR) and standard search paths are search pages.
+  let isSearchPage;
+  if (site.name === "mobile.de") {
+    isSearchPage = path.startsWith("/fahrzeuge/search.html");
+  } else {
+    // autoscout24: treat any non-listing page as a potential search page
+    // common search paths: /lst/, /results/, /search/
+    isSearchPage = !isListing;
+  }
 
   if (!scraper) {
     console.error("[CarImport] Scraper not loaded for:", site.name);

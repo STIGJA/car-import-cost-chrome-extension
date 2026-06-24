@@ -123,16 +123,27 @@
     };
   }
 
-  /**
-   * Detect country from location text + current hostname.
-   *
-   * Hostname is the most reliable signal for the source country:
-   *   autoscout24.be  → BE
-   *   autoscout24.de  → DE
-   *   autoscout24.fr  → FR
-   *
-   * Postcode is extracted for completeness but country is driven by TLD.
-   */
+  function countryFromHostname() {
+    const h = window.location.hostname;
+    if (h.endsWith(".fr")) return "FR";
+    if (h.endsWith(".be")) return "BE";
+    return "DE";
+  }
+
+  function parseLocationText(text) {
+    if (!text) return null;
+    const host = window.location.hostname;
+    const fiveDigit = text.match(/\b(\d{5})\b/);
+    if (fiveDigit) {
+      const country = host.endsWith(".fr") ? "FR" : "DE";
+      return { postcode: fiveDigit[1], country };
+    }
+    const fourDigit = text.match(/\b([1-9]\d{3})\b/);
+    if (fourDigit && parseInt(fourDigit[1], 10) <= 9999)
+      return { postcode: fourDigit[1], country: "BE" };
+    return null;
+  }
+
   function scrapeLocation() {
     const candidates = [
       document.querySelector('[data-testid="seller-info"]'),
@@ -152,35 +163,7 @@
       const loc = parseLocationText(el.textContent.trim());
       if (loc) return loc;
     }
-    // Fallback: derive country from hostname TLD
     return { postcode: null, country: countryFromHostname() };
-  }
-
-  function countryFromHostname() {
-    const host = window.location.hostname;
-    if (host.endsWith(".fr")) return "FR";
-    if (host.endsWith(".be")) return "BE";
-    return "DE"; // .de or .com
-  }
-
-  function parseLocationText(text) {
-    if (!text) return null;
-
-    // German postcode: exactly 5 digits, starts 01000–99999
-    // French postcode: also 5 digits, starts 01000–99999
-    // Belgian postcode: 4 digits, 1000–9999
-    // → Use hostname TLD to disambiguate DE vs FR 5-digit postcodes.
-    const host = window.location.hostname;
-
-    const fiveDigit = text.match(/\b(\d{5})\b/);
-    if (fiveDigit) {
-      const country = host.endsWith(".fr") ? "FR" : "DE";
-      return { postcode: fiveDigit[1], country };
-    }
-    const fourDigit = text.match(/\b([1-9]\d{3})\b/);
-    if (fourDigit && parseInt(fourDigit[1], 10) <= 9999)
-      return { postcode: fourDigit[1], country: "BE" };
-    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -192,70 +175,47 @@
     if (!price) return null;
 
     const firstRegRaw = scrapeDetailValue([
-      // DE
       "Erstzulassung",
-      // EN
       "First registration",
-      // NL
       "Eerste registratie",
-      // FR — autoscout24.fr uses this exact label
       "1\u00e8re mise en circulation",
       "Mise en circulation",
     ]);
     const fuelRaw =
       scrapeDetailValue([
-        // DE
         "Kraftstoff",
-        // EN
         "Fuel type",
-        // NL
         "Brandstof",
-        // FR
         "Carburant",
         "Type de carburant",
       ]) ?? "";
     const co2Raw = scrapeDetailValue([
-      // DE
       "CO2-Emissionen",
-      // EN
       "CO2 emissions",
-      // NL
       "CO2-uitstoot",
-      // FR — autoscout24.fr uses "CO2 (mixte)" or "\u00c9missions CO2"
       "\u00c9missions CO2",
       "Emissions CO2",
       "CO2 (mixte)",
       "CO\u2082",
     ]);
     const powerRaw = scrapeDetailValue([
-      // DE
       "Leistung",
-      // EN
       "Power",
-      // NL
       "Vermogen",
-      // FR
       "Puissance",
     ]);
     const euroRaw = scrapeDetailValue([
-      // DE
       "Schadstoffklasse",
-      // EN
       "Emission class",
-      // NL
       "Emissieklasse",
-      // FR
       "Classe d\u2019\u00e9mission",
       "Classe d'emission",
       "Norme Euro",
       "Euro",
     ]);
     const mileageRaw = scrapeDetailValue([
-      // DE
       "Kilometerstand",
-      // EN
       "Mileage",
-      // FR
       "Kilom\u00e9trage",
       "Kilometrage",
     ]);
@@ -287,16 +247,19 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Search results page
+  // Search results page  (/lst/, /results/, /search/, etc.)
   // ---------------------------------------------------------------------------
 
   function scrapePriceFromCard(card) {
+    // Try known testids first
     const priceEl =
       card.querySelector('[data-testid="price"]') ??
       card.querySelector('[data-testid="listing-item-price"]') ??
       card.querySelector('[data-testid="regular-price"]') ??
+      card.querySelector('[data-testid="price-section"]') ??
       card.querySelector('[class*="Price__value"]') ??
-      card.querySelector('[class*="PriceInfo"]');
+      card.querySelector('[class*="PriceInfo"]') ??
+      card.querySelector('[class*="price"]');
 
     if (priceEl) {
       const directText = Array.from(priceEl.childNodes)
@@ -307,7 +270,8 @@
       if (val && val > 500 && val < 10_000_000) return val;
     }
 
-    for (const el of card.querySelectorAll("span, strong, p")) {
+    // Broad fallback: any short element containing €
+    for (const el of card.querySelectorAll("span, strong, p, div")) {
       const text = el.textContent.trim();
       if (!/[\u20ac]/.test(text)) continue;
       if (text.length > 30) continue;
@@ -318,9 +282,30 @@
   }
 
   function scrapeSearchPage() {
-    const cards = document.querySelectorAll(
-      'article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
-    );
+    // AutoScout24 uses several data-testid variants across locales and A/B tests.
+    // We cast a wide net and deduplicate by DOM element.
+    const cardSelectors = [
+      'article[data-testid="listing-item"]',
+      'article[data-testid="listing-item-description"]',
+      'article[data-testid^="listing-"]',
+      'article[class*="ListItem"]',
+      'article[id*="listing"]',
+      // /lst/ page uses a different structure
+      'article[data-testid^="list-page-item-"]',
+      '[data-testid="list-page-item"]',
+    ];
+
+    const seen = new Set();
+    const cards = [];
+    for (const sel of cardSelectors) {
+      for (const el of document.querySelectorAll(sel)) {
+        if (!seen.has(el)) {
+          seen.add(el);
+          cards.push(el);
+        }
+      }
+    }
+
     if (!cards.length) return null;
 
     const results = [];
@@ -346,7 +331,6 @@
         card.querySelector('[class*="power"]');
       const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
 
-      // Country from TLD (most reliable), postcode from text
       const country = countryFromHostname();
       const loc = parseLocationText(allText);
 
