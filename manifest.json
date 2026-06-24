@@ -5,8 +5,9 @@
   "description": "Toont Nederlandse importkosten direct op AutoScout24 en Mobile.de",
   "permissions": ["storage"],
   "host_permissions": [
-    "*://*.autoscout24.com/*",
-    "*://*.autoscout24.nl/*",
+    "*://*.autoscout24.be/*",
+    "*://*.autoscout24.de/*",
+    "*://*.autoscout24.fr/*",
     "*://suchen.mobile.de/*",
     "*://www.mobile.de/*",
     "*://mobile.de/*"
@@ -22,8 +23,9 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.autoscout24.com/*",
-        "*://*.autoscout24.nl/*"
+        "*://*.autoscout24.be/*",
+        "*://*.autoscout24.de/*",
+        "*://*.autoscout24.fr/*"
       ],
       "js": [
         "content/lookups/co2-lookup.js",

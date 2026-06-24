@@ -14,12 +14,6 @@ export const TRANSPORT_DEFAULTS = {
   DE: 350,
   BE: 150,
   FR: 500,
-  IT: 900,
-  ES: 950,
-  AT: 450,
-  CH: 500,
-  PL: 400,
-  OTHER: 600,
 };
 
 export const SETTING_DEFAULTS = {
