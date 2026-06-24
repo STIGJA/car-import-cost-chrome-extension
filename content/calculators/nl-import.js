@@ -7,7 +7,7 @@
 "use strict";
 
 (function (root) {
-  const DEFAULT_FIXED_COSTS = 170;
+  const DEFAULT_FIXED_COSTS = 200;
   const DEFAULT_TRANSPORT_BY_COUNTRY = {
     DE: 350,
     BE: 150,
@@ -40,6 +40,10 @@
     const m = ageMonthsFrom(v);
     return m != null ? m / 12 : 3;
   }
+  function registrationYearFrom(v) {
+    const d = parseDate(v);
+    return d ? d.getFullYear() : new Date().getFullYear();
+  }
 
   // ---------------------------------------------------------------------------
   // Transport lookup
@@ -70,10 +74,11 @@
     const months = ageMonthsFrom(firstReg);
     const isNew = months != null && months < 6;
     const years = ageYearsFrom(firstReg);
+    const regYear = registrationYearFrom(firstReg);
 
     const vat = isNew ? Math.round(price * 0.21) : 0;
-    const gross = bpmBruto(co2, fuelType);
-    const bpmExact = bpmNetto(co2, fuelType, years);
+    const gross = bpmBruto(co2, fuelType, regYear);
+    const bpmExact = bpmNetto(co2, fuelType, years, regYear);
 
     // Als CO2 geschat is: afronden op dichtstbijzijnde €100 en ~ prefix tonen
     const bpmDisplay = co2Estimated
