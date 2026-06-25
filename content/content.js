@@ -38,8 +38,23 @@
       //   IT : /annunci/
       isListing: () =>
         /\/(angebote|annonces|aanbod|annunci|offres)\//.test(path),
-      listingAnchor: () =>
-        document.querySelector('[data-testid="price-section"]'),
+      listingAnchor: () => {
+        // AutoScout24 detail page — the price block sits inside an <aside>
+        // or a sticky sidebar div. Try known selectors in order of specificity.
+        // NOTE: [data-testid="price-section"] exists only on search cards, NOT
+        // on detail pages. On the detail page the price lives in a section/div
+        // with class containing "cldt-price" or inside an <aside>.
+        return (
+          document.querySelector('[data-testid="price-section"]') ??
+          document.querySelector('[class*="cldt-price-section"]') ??
+          document.querySelector('[class*="PriceSection"]') ??
+          document.querySelector('[class*="price-section"]') ??
+          document.querySelector('aside [class*="price"]') ??
+          document.querySelector("aside") ??
+          document.querySelector('[data-testid="seller-section"]') ??
+          null
+        );
+      },
       listingInsertMethod: () => "afterend",
       searchCardWrapper: (cardEl) => cardEl,
     },
@@ -52,31 +67,39 @@
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
       listingAnchor: () => {
-        const priceBox = document.querySelector(
-          'article[data-testid="vip-price-box"]',
-        );
-        if (priceBox) {
-          const section = priceBox.querySelector("section");
-          if (section) return section;
-          const div = priceBox.querySelector(":scope > div");
-          if (div) return div;
-          return priceBox;
-        }
-        return (
+        // mobile.de detail page — there is no article[data-testid="vip-price-box"].
+        // The price label [data-testid="vip-price-label"] is the most reliable
+        // anchor. Walk up to its nearest section or div container so we can
+        // insert the widget after the entire price block, not just the label.
+        const priceLabel =
           document.querySelector('[data-testid="vip-price-label"]') ??
+          document.querySelector('[data-testid="price-label"]') ??
+          document.querySelector('[data-testid="vip-price"]');
+
+        if (priceLabel) {
+          // Walk up max 4 levels to find a meaningful container
+          // (section, article, or a div that is a direct child of the sidebar)
+          let el = priceLabel;
+          for (let i = 0; i < 4; i++) {
+            const parent = el.parentElement;
+            if (!parent) break;
+            const tag = parent.tagName.toLowerCase();
+            if (tag === "section" || tag === "article") return parent;
+            // Stop if the parent is clearly the sidebar/page root
+            if (tag === "aside" || tag === "main" || tag === "body") return el;
+            el = parent;
+          }
+          return el;
+        }
+
+        // Broad fallbacks
+        return (
           document.querySelector('[data-testid="vehicle-detail-main"]') ??
+          document.querySelector('[data-testid="vip-contact-box"]') ??
           null
         );
       },
-      listingInsertMethod: (anchorEl) => {
-        if (!anchorEl) return "afterend";
-        if (
-          anchorEl.tagName.toLowerCase() === "article" &&
-          anchorEl.dataset?.testid === "vip-price-box"
-        )
-          return "beforeend";
-        return "afterend";
-      },
+      listingInsertMethod: () => "afterend",
       searchCardWrapper: (cardEl) => cardEl,
     },
   ];
