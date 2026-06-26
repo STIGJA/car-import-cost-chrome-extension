@@ -7,7 +7,6 @@
   "host_permissions": [
     "*://*.autoscout24.be/*",
     "*://*.autoscout24.de/*",
-    "*://*.autoscout24.fr/*",
     "*://suchen.mobile.de/*"
   ],
   "action": {
@@ -22,8 +21,7 @@
     {
       "matches": [
         "*://*.autoscout24.be/*",
-        "*://*.autoscout24.de/*",
-        "*://*.autoscout24.fr/*"
+        "*://*.autoscout24.de/*"
       ],
       "js": [
         "content/lookups/co2-lookup.js",

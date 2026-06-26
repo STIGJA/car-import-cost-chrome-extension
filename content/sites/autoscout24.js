@@ -125,18 +125,15 @@
 
   function countryFromHostname() {
     const h = window.location.hostname;
-    if (h.endsWith(".fr")) return "FR";
     if (h.endsWith(".be")) return "BE";
     return "DE";
   }
 
   function parseLocationText(text) {
     if (!text) return null;
-    const host = window.location.hostname;
     const fiveDigit = text.match(/\b(\d{5})\b/);
     if (fiveDigit) {
-      const country = host.endsWith(".fr") ? "FR" : "DE";
-      return { postcode: fiveDigit[1], country };
+      return { postcode: fiveDigit[1], country: "DE" };
     }
     const fourDigit = text.match(/\b([1-9]\d{3})\b/);
     if (fourDigit && parseInt(fourDigit[1], 10) <= 9999)
@@ -178,46 +175,33 @@
       "Erstzulassung",
       "First registration",
       "Eerste registratie",
-      "1\u00e8re mise en circulation",
-      "Mise en circulation",
     ]);
     const fuelRaw =
       scrapeDetailValue([
         "Kraftstoff",
         "Fuel type",
         "Brandstof",
-        "Carburant",
-        "Type de carburant",
       ]) ?? "";
     const co2Raw = scrapeDetailValue([
       "CO2-Emissionen",
       "CO2 emissions",
       "CO2-uitstoot",
-      "\u00c9missions CO2",
-      "Emissions CO2",
-      "CO2 (mixte)",
       "CO\u2082",
     ]);
     const powerRaw = scrapeDetailValue([
       "Leistung",
       "Power",
       "Vermogen",
-      "Puissance",
     ]);
     const euroRaw = scrapeDetailValue([
       "Schadstoffklasse",
       "Emission class",
       "Emissieklasse",
-      "Classe d\u2019\u00e9mission",
-      "Classe d'emission",
-      "Norme Euro",
       "Euro",
     ]);
     const mileageRaw = scrapeDetailValue([
       "Kilometerstand",
       "Mileage",
-      "Kilom\u00e9trage",
-      "Kilometrage",
     ]);
 
     const fuelType = normalizeFuelType(fuelRaw, null);
