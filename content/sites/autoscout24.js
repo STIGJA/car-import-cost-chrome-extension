@@ -447,10 +447,6 @@
     return null;
   }
 
-  function isImportRelevantCountry(country) {
-    return country != null && country !== "nl";
-  }
-
   function scrapeSearchPage() {
     const cards = document.querySelectorAll(
       'article[data-testid="list-item"], article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
@@ -463,7 +459,7 @@
       if (!price) continue;
 
       const country = detectListingCountry(card);
-      const importRelevant = isImportRelevantCountry(country);
+      const importRelevant = country == null || country !== "nl";
 
       const allText = Array.from(card.querySelectorAll("*"))
         .map((el) => el.childNodes)
