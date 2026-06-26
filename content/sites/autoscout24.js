@@ -131,7 +131,7 @@
       if (val && val > 500 && val < 10_000_000) return val;
     }
 
-    // Strategy 3: Generic — scan all spans for a €-price pattern
+    // Strategy 3: Generic — scan all spans for a \u20ac-price pattern
     for (const el of document.querySelectorAll("span, strong")) {
       const text = el.textContent.trim();
       if (!text || text.length > 30) continue;
@@ -188,48 +188,51 @@
     if (!price) return null;
 
     const firstRegRaw = scrapeDetailValue([
-      "Erstzulassung",
-      "First registration",
-      "Eerste registratie",
-      "1\u00e8re mise en circulation",
-      "Mise en circulation",
+      "Erstzulassung",           // DE
+      "First registration",      // EN
+      "Eerste registratie",      // NL (.nl)
+      "Eerste inschrijving",     // NL-BE (.be/nl) \u2190 the fix
+      "1\u00e8re mise en circulation", // FR
+      "Mise en circulation",     // FR fallback
     ]);
     const fuelRaw =
       scrapeDetailValue([
-        "Kraftstoff",
-        "Fuel type",
-        "Brandstof",
-        "Carburant",
-        "Alimentation",
+        "Kraftstoff",   // DE
+        "Fuel type",    // EN
+        "Brandstof",    // NL/BE
+        "Carburant",    // FR
+        "Alimentation", // FR alt
       ]) ?? "";
     const co2Raw = scrapeDetailValue([
-      "CO2-Emissionen",
-      "CO2 emissions",
-      "CO2-uitstoot",
-      "\u00c9missions CO2", // Émissions CO2  (uppercase É, no "de")
-      "Emissions CO2",
-      "\u00e9missions de CO2", // émissions de CO2  (FR listing page ← the fix)
-      "CO\u2082",
+      "CO2-Emissionen",            // DE
+      "CO2 emissions",             // EN
+      "CO2-uitstoot",              // NL
+      "CO2-emissies",              // NL-BE \u2190 added
+      "\u00c9missions CO2",        // FR (uppercase \u00c9)
+      "Emissions CO2",             // FR plain
+      "\u00e9missions de CO2",     // FR lower
+      "CO\u2082",                  // generic fallback
     ]);
     const powerRaw = scrapeDetailValue([
-      "Leistung",
-      "Power",
-      "Vermogen",
-      "Puissance",
+      "Leistung",  // DE
+      "Power",     // EN
+      "Vermogen",  // NL/BE
+      "Puissance", // FR
     ]);
     const euroRaw = scrapeDetailValue([
-      "Schadstoffklasse",
-      "Emission class",
-      "Emissieklasse",
-      "Classe d\u2019\u00e9mission",
-      "Classe d'emission",
-      "Euro",
+      "Schadstoffklasse",           // DE
+      "Emission class",             // EN
+      "Emissieklasse",              // NL
+      "Emissieklasse",              // NL-BE (same)
+      "Classe d\u2019\u00e9mission", // FR
+      "Classe d'emission",          // FR plain
+      "Euro",                       // generic fallback
     ]);
     const mileageRaw = scrapeDetailValue([
-      "Kilometerstand",
-      "Mileage",
-      "Kilom\u00e9trage",
-      "Kilometrage",
+      "Kilometerstand",  // DE/NL/BE
+      "Mileage",         // EN
+      "Kilom\u00e9trage", // FR
+      "Kilometrage",     // FR plain
     ]);
 
     // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
@@ -292,7 +295,7 @@
    *
    * FR search cards store the date as the text content of the
    * data-testid="VehicleDetails-calendar" pill, formatted as "MMYYYY"
-   * (e.g. "032021" or "04 2026" — no separator guaranteed).
+   * (e.g. "032021" or "04 2026" \u2014 no separator guaranteed).
    * We also check the data-first-registration attribute on the article
    * element itself (format "MM-YYYY") as a reliable fallback.
    *
@@ -308,13 +311,13 @@
       if (attrM) return `${attrM[1]}/${attrM[2]}`;
     }
 
-    // 2. Calendar pill text — FR renders "MMYYYY" (digits only, no separator)
+    // 2. Calendar pill text \u2014 FR renders "MMYYYY" (digits only, no separator)
     const calPill = card.querySelector(
       '[data-testid="VehicleDetails-calendar"]',
     );
     if (calPill) {
       const raw = calPill.textContent.trim().replace(/\s+/g, "");
-      // "MMYYYY" — exactly 6 digits
+      // "MMYYYY" \u2014 exactly 6 digits
       const sixDigM = raw.match(/^(\d{2})(\d{4})$/);
       if (sixDigM) return `${sixDigM[1]}/${sixDigM[2]}`;
       // "MM/YYYY" or "MM-YYYY" already formatted
@@ -341,7 +344,7 @@
    * (integer km value, already parsed).
    */
   function parseMileageFromCard(card) {
-    // 1. data-mileage attribute — already an integer km value on FR cards
+    // 1. data-mileage attribute \u2014 already an integer km value on FR cards
     const attr = card.getAttribute("data-mileage");
     if (attr) {
       const val = parseInt(attr, 10);
@@ -389,7 +392,7 @@
         card.querySelector('[class*="fuel"]');
       const fuelType = normalizeFuelType(allText, fuelEl);
 
-      // Vermogen parsen — FR cards use data-testid="VehicleDetails-speedometer"
+      // Vermogen parsen \u2014 FR cards use data-testid="VehicleDetails-speedometer"
       const powerEl =
         card.querySelector('[data-testid="VehicleDetails-speedometer"]') ??
         card.querySelector('[data-testid="listing-item-power"]') ??
