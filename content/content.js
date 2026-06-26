@@ -16,7 +16,7 @@
 
   const settings = await new Promise((resolve) =>
     chrome.storage.sync.get(
-      { fixedCosts: 170, transportByCountry: null },
+      { fixedCosts: 200, transportByCountry: null },
       resolve,
     ),
   );
