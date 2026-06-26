@@ -75,8 +75,12 @@
           return "beforeend";
         return "afterend";
       },
-      // null = append inside the card (no container gap)
-      searchCardWrapper: () => null,
+      // Mobile.de search cards are <a> elements (inline-level), so a <div>
+      // appended inside them doesn't get a block width from the parent grid.
+      // Instead, inject the widget as a sibling AFTER the <a> card by
+      // returning the card element itself as the wrapper — the renderer will
+      // call insertAdjacentElement("afterend", widget) on it.
+      searchCardWrapper: (cardEl) => cardEl,
     },
   ];
 

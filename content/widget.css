@@ -72,9 +72,13 @@
 
 /* --------------------------------------------------------------------------
    ZOEKPAGINA — .cic-compact
-   Geplaatst als laatste kind BINNEN de kaart (via appendChild).
-   Een scheidingslijn bovenaan zorgt voor visuele scheiding van de
-   kaartinhoud zonder afhankelijk te zijn van de container-gap.
+
+   AutoScout24 : geplaatst als laatste kind BINNEN de kaart (appendChild).
+                 Een scheidingslijn bovenaan zorgt voor visuele scheiding.
+   Mobile.de   : geplaatst als sibling NA de <a>-kaart (insertAdjacentElement
+                 "afterend"). De <a> is inline-level; een block child daarin
+                 erft geen breedte uit de parent grid. Als sibling pakt de
+                 widget wél de volledige breedte van de grid-cel.
    -------------------------------------------------------------------------- */
 
 .cic-compact {
@@ -83,7 +87,6 @@
   background: #f8f9fa;
   border-top: 1px solid #dee2e6;
   padding: 8px 12px;
-  margin: 8px -0px -0px;   /* flush met de kaartrand aan de zijkanten */
   box-sizing: border-box;
   color: #212529;
   width: 100%;
