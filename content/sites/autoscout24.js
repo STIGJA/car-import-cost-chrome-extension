@@ -59,9 +59,12 @@
         return "electric";
       if (t.includes("diesel")) return "diesel";
       if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
-      // FR: "électrique", "Essence", "Hybride"
+      // FR: "électrique" / "lectrique" (with or without leading é)
       if (t.includes("lectrique")) return "electric";
+      // FR: "Hybride"
       if (t.includes("hybride")) return "hybrid";
+      // FR: "Essence" — explicit return so it never falls through to the raw-text block
+      if (t.includes("essence")) return "petrol";
     }
     // Fallback op vrije tekst — gebruik woordgrens-matching voor elektrisch
     const l = (raw ?? "").toLowerCase();
@@ -279,6 +282,77 @@
     return null;
   }
 
+  /**
+   * Parses the first-registration date from a search card.
+   *
+   * FR search cards store the date as the text content of the
+   * data-testid="VehicleDetails-calendar" pill, formatted as "MMYYYY"
+   * (e.g. "032021" or "04 2026" — no separator guaranteed).
+   * We also check the data-first-registration attribute on the article
+   * element itself (format "MM-YYYY") as a reliable fallback.
+   *
+   * DE/NL/BE cards may use a different format; the existing year-only
+   * regex is kept as a final fallback so those locales are unaffected.
+   */
+  function parseFirstRegFromCard(card) {
+    // 1. data-first-registration attribute on the article (FR: "MM-YYYY")
+    const attr = card.getAttribute("data-first-registration");
+    if (attr) {
+      // Format: "MM-YYYY" e.g. "03-2021"
+      const attrM = attr.match(/^(\d{2})-(\d{4})$/);
+      if (attrM) return `${attrM[1]}/${attrM[2]}`;
+    }
+
+    // 2. Calendar pill text — FR renders "MMYYYY" (digits only, no separator)
+    const calPill = card.querySelector('[data-testid="VehicleDetails-calendar"]');
+    if (calPill) {
+      const raw = calPill.textContent.trim().replace(/\s+/g, "");
+      // "MMYYYY" — exactly 6 digits
+      const sixDigM = raw.match(/^(\d{2})(\d{4})$/);
+      if (sixDigM) return `${sixDigM[1]}/${sixDigM[2]}`;
+      // "MM/YYYY" or "MM-YYYY" already formatted
+      const slashM = raw.match(/^(\d{2})[\/\-](\d{4})$/);
+      if (slashM) return `${slashM[1]}/${slashM[2]}`;
+      // Fallback: just a year
+      const yearOnlyM = raw.match(/(19|20)(\d{2})/);
+      if (yearOnlyM) return `01/${yearOnlyM[0]}`;
+    }
+
+    // 3. Last resort: year regex on full card text
+    const yearM = card.textContent.match(/(19|20)\d{2}/);
+    if (yearM) return `01/${yearM[0]}`;
+
+    return null;
+  }
+
+  /**
+   * Parses the mileage from a search card.
+   *
+   * FR search cards expose mileage in the
+   * data-testid="VehicleDetails-mileageodometer" pill (e.g. "72 405 km").
+   * The data-mileage attribute on the article element is also reliable
+   * (integer km value, already parsed).
+   */
+  function parseMileageFromCard(card) {
+    // 1. data-mileage attribute — already an integer km value on FR cards
+    const attr = card.getAttribute("data-mileage");
+    if (attr) {
+      const val = parseInt(attr, 10);
+      if (!isNaN(val) && val >= 0) return val;
+    }
+
+    // 2. Mileage pill text
+    const mileEl = card.querySelector('[data-testid="VehicleDetails-mileageodometer"]') ??
+      card.querySelector('[data-testid="listing-item-mileage"]') ??
+      card.querySelector('[class*="Mileage"]');
+    if (mileEl) {
+      const val = parseNumber(mileEl.textContent);
+      if (val != null && val >= 0) return val;
+    }
+
+    return null;
+  }
+
   function scrapeSearchPage() {
     const cards = document.querySelectorAll(
       'article[data-testid="list-item"], article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
@@ -292,8 +366,10 @@
 
       const allText = card.textContent;
 
-      const yearM = allText.match(/(19|20)\d{2}/);
-      const year = yearM ? parseInt(yearM[0], 10) : null;
+      const firstRegDate = parseFirstRegFromCard(card);
+      const year = firstRegDate
+        ? parseInt(firstRegDate.split("/")[1], 10)
+        : null;
 
       // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden.
       // FR search cards use data-testid="VehicleDetails-gaspump" for the fuel pill.
@@ -313,12 +389,14 @@
         card.querySelector('[class*="power"]');
       const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
 
+      const mileage = parseMileageFromCard(card);
+
       results.push({
         el: card,
         price: { value: price, unit: "EUR" },
-        firstRegDate: year ? { value: `01/${year}`, unit: "MM/YYYY" } : null,
+        firstRegDate: firstRegDate ? { value: firstRegDate, unit: "MM/YYYY" } : null,
         fuelType: { value: fuelType },
-        mileage: null,
+        mileage: mileage != null ? { value: mileage, unit: "km" } : null,
         powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
         euroNorm: null,
         co2: buildCO2Field(fuelType, null, powerKw, year, null),
