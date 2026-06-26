@@ -30,85 +30,52 @@
       match: () => host.includes("autoscout24"),
       scraper: () => window.CIC_AS24,
       calc: () => window.CIC_NL,
-      // Listing URL path segments per locale:
-      //   DE : /angebote/
-      //   FR : /offres/
-      //   BE NL: /aanbod/
-      //   BE FR: /annonces/
-      //   IT : /annunci/
+      // Detail page URL patterns per locale:
+      //   DE/AT/CH: /angebote/
+      //   FR:       /offres/
+      //   NL/BE:    /aanbod/
+      //   IT:       /annunci/
+      //   EN:       /listings/ (future-proof)
       isListing: () =>
-        /\/(angebote|annonces|aanbod|annunci|offres)\//.test(path),
-      listingAnchor: () => {
-        return (
-          document.querySelector('[data-testid="price-section"]') ??
-          document.querySelector('[class*="cldt-price-section"]') ??
-          document.querySelector('[class*="PriceSection"]') ??
-          document.querySelector('[class*="price-section"]') ??
-          document.querySelector('aside [class*="price"]') ??
-          document.querySelector("aside") ??
-          document.querySelector('[data-testid="seller-section"]') ??
-          null
-        );
-      },
+        /\/(angebote|annonces|offres|aanbod|annunci|listings)\//.test(path),
+      listingAnchor: () =>
+        // FR detail page has no price-section wrapper; fall back to the
+        // regular-price span itself so we can insert afterend.
+        document.querySelector('[data-testid="price-section"]') ??
+        document.querySelector('[data-testid="regular-price"]'),
       listingInsertMethod: () => "afterend",
       searchCardWrapper: (cardEl) => cardEl,
     },
     {
       name: "mobile.de",
-      // Only activate on suchen.mobile.de — www.mobile.de and mobile.de
-      // are the homepage/redirects and contain no car cards.
-      match: () => host === "suchen.mobile.de",
+      match: () =>
+        host === "suchen.mobile.de" ||
+        host === "www.mobile.de" ||
+        host === "mobile.de",
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
-      // mobile.de has two detail page URL patterns:
-      //   1. /fahrzeuge/details.html?id=XXXXX   (old query-string style)
-      //   2. /auto-inserat/<slug>/<id>           (canonical SEO slug, used on
-      //                                           most listing pages since 2024)
-      // Both render the same DOM with vip-price-box / vip-price-label.
-      isListing: () =>
-        path.startsWith("/fahrzeuge/details.html") ||
-        path.startsWith("/auto-inserat/"),
+      isListing: () => path.startsWith("/fahrzeuge/details.html"),
+      // DOM (verified Jun 2026):
+      //   <article data-testid="vip-price-box">
+      //     <section>  ← price + financing
+      //   </article>
+      // Insert after <section> so widget stays inside the article (right column).
       listingAnchor: () => {
-        // mobile.de detail page DOM structure:
-        //   <div data-testid="vip-price-box">
-        //     <section>
-        //       <div data-testid="vip-price-label">23.900 €</div>
-        //     </section>
-        //   </div>
-        // Insert the widget AFTER the entire vip-price-box div.
-
-        // 1. Try the vip-price-box container directly first
-        const priceBox = document.querySelector('[data-testid="vip-price-box"]');
-        if (priceBox) return priceBox;
-
-        // 2. Walk up from the price label (up to 8 levels)
-        const priceLabel =
-          document.querySelector('[data-testid="vip-price-label"]') ??
-          document.querySelector('[data-testid="price-label"]') ??
-          document.querySelector('[data-testid="vip-price"]');
-
-        if (priceLabel) {
-          let el = priceLabel;
-          for (let i = 0; i < 8; i++) {
-            const parent = el.parentElement;
-            if (!parent) break;
-            if (parent.getAttribute("data-testid") === "vip-price-box") return parent;
-            const tag = parent.tagName.toLowerCase();
-            if (tag === "section" || tag === "article") return parent;
-            if (tag === "aside" || tag === "main" || tag === "body") return el;
-            el = parent;
-          }
-          return el;
-        }
-
-        // 3. Broad fallbacks
-        return (
-          document.querySelector('[data-testid="vehicle-detail-main"]') ??
-          document.querySelector('[data-testid="vip-contact-box"]') ??
-          null
+        const priceBox = document.querySelector(
+          'article[data-testid="vip-price-box"]',
         );
+        if (priceBox) return priceBox.querySelector("section") ?? priceBox;
+        return document.querySelector('[data-testid="vip-price-label"]') ?? null;
       },
-      listingInsertMethod: () => "afterend",
+      listingInsertMethod: (anchorEl) => {
+        if (!anchorEl) return "afterend";
+        if (
+          anchorEl.tagName.toLowerCase() === "article" &&
+          anchorEl.dataset?.testid === "vip-price-box"
+        )
+          return "beforeend";
+        return "afterend";
+      },
       searchCardWrapper: (cardEl) => cardEl,
     },
   ];
@@ -120,15 +87,6 @@
   const calc = site.calc();
   const isListing = site.isListing();
 
-  // For mobile.de: only run the search scraper on the actual search results page.
-  // For autoscout24: /lst/ (FR) and standard search paths are search pages.
-  let isSearchPage;
-  if (site.name === "mobile.de") {
-    isSearchPage = path.startsWith("/fahrzeuge/search.html");
-  } else {
-    isSearchPage = !isListing;
-  }
-
   if (!scraper) {
     console.error("[CarImport] Scraper not loaded for:", site.name);
     return;
@@ -137,9 +95,6 @@
     console.error("[CarImport] Calculator (CIC_NL) not loaded");
     return;
   }
-
-  // Bail out silently if not on a listing or search page we handle.
-  if (!isListing && !isSearchPage) return;
 
   console.log(
     `[CarImport] Active on ${site.name} —`,

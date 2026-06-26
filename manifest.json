@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Car Import Cost Calculator",
-  "version": "0.7.2",
+  "version": "0.7.1",
   "description": "Toont Nederlandse importkosten direct op AutoScout24 en Mobile.de",
   "permissions": ["storage"],
   "host_permissions": [
     "*://*.autoscout24.be/*",
     "*://*.autoscout24.de/*",
-    "*://suchen.mobile.de/*"
+    "*://*.autoscout24.fr/*",
+    "*://suchen.mobile.de/*",
+    "*://www.mobile.de/*",
+    "*://mobile.de/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",
@@ -21,7 +24,8 @@
     {
       "matches": [
         "*://*.autoscout24.be/*",
-        "*://*.autoscout24.de/*"
+        "*://*.autoscout24.de/*",
+        "*://*.autoscout24.fr/*"
       ],
       "js": [
         "content/lookups/co2-lookup.js",
@@ -36,7 +40,9 @@
     },
     {
       "matches": [
-        "*://suchen.mobile.de/fahrzeuge/*"
+        "*://suchen.mobile.de/*",
+        "*://www.mobile.de/*",
+        "*://mobile.de/*"
       ],
       "js": [
         "content/lookups/co2-lookup.js",

@@ -1,24 +1,14 @@
 /**
  * nl-import.js — Berekening importkosten Nederland (EU-scope)
  *
- * Transport: vaste kosten per herkomstland (instelbaar in popup-instellingen).
+ * Transport: vaste kosten instelbaar in popup-instellingen.
  */
 
 "use strict";
 
 (function (root) {
   const DEFAULT_FIXED_COSTS = 200;
-  const DEFAULT_TRANSPORT_BY_COUNTRY = {
-    DE: 350,
-    BE: 150,
-    FR: 500,
-    IT: 900,
-    ES: 950,
-    AT: 450,
-    CH: 500,
-    PL: 400,
-    OTHER: 600,
-  };
+  const DEFAULT_TRANSPORT_COST = 350;
 
   // ---------------------------------------------------------------------------
   // Date helpers
@@ -46,14 +36,6 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Transport lookup
-  // ---------------------------------------------------------------------------
-  function getTransportCost(country, transportByCountry) {
-    const map = transportByCountry ?? DEFAULT_TRANSPORT_BY_COUNTRY;
-    return map[country] ?? map["OTHER"] ?? 600;
-  }
-
-  // ---------------------------------------------------------------------------
   // Main
   // ---------------------------------------------------------------------------
   function calculate(listing, settings = {}) {
@@ -62,9 +44,8 @@
     const price = listing.price.value;
     const fuelType = listing.fuelType.value;
     const firstReg = listing.firstRegDate?.value ?? null;
-    const carCountry = listing.country ?? "DE";
     const fixedCosts = settings.fixedCosts ?? DEFAULT_FIXED_COSTS;
-    const transport = getTransportCost(carCountry, settings.transportByCountry);
+    const transport = settings.transportCost ?? DEFAULT_TRANSPORT_COST;
 
     const co2 = listing.co2.value ?? estimateCO2(fuelType, listing.year?.value);
     const co2Estimated =

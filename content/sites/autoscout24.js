@@ -10,8 +10,6 @@
  *   powerKw:      { value: number, unit: 'kW' } | null
  *   euroNorm:     { value: string } | null
  *   co2:          { value: number, unit: 'g/km', source, method, confidence }
- *   postcode:     string | null
- *   country:      string | null
  *   el:           Element  (search page only)
  * }
  */
@@ -27,7 +25,8 @@
     if (!raw) return null;
     const cleaned = raw
       .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "")
-      .replace(/\s+\d+$/, "")
+      // Only strip trailing footnote numbers (1-2 digits), not price parts like " 700"
+      .replace(/\s+\d{1,2}$/, "")
       .replace(/[^0-9]/g, "");
     return cleaned ? parseInt(cleaned, 10) : null;
   }
@@ -38,19 +37,46 @@
     return digits ? parseInt(digits, 10) : null;
   }
 
+  /**
+   * Bepaalt brandstoftype uit een string.
+   *
+   * Op de zoekpagina wordt allText (hele kaart) meegegeven, maar de omschrijving
+   * kan woorden als "Elektrische Sitzeinstellung" bevatten die niets met het
+   * brandstoftype te maken hebben.
+   *
+   * Strategie:
+   *  1. Probeer een specifiek brandstof-element te lezen (data-testid of class).
+   *  2. Val terug op de volledige tekst, maar pas dan alleen op duidelijke
+   *     woorden die als zelfstandig token staan (bijv. "Diesel" als woord,
+   *     niet als onderdeel van "Dieselpartikelfilter").
+   *  3. "elektrisch" / "electric" / "BEV" als zelfstandige term, NIET als
+   *     onderdeel van bijv. "elektrische stoelverstelling".
+   */
   function normalizeFuelType(raw, fuelEl) {
+    // Eerst: specifiek element (meest betrouwbaar)
     if (fuelEl) {
       const t = fuelEl.textContent.trim().toLowerCase();
       if (t.includes("elektr") || t.includes("electric") || t.includes("bev"))
         return "electric";
       if (t.includes("diesel")) return "diesel";
       if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
+      // FR: "électrique" / "lectrique" (with or without leading é)
+      if (t.includes("lectrique")) return "electric";
+      // FR: "Hybride"
+      if (t.includes("hybride")) return "hybrid";
+      // FR: "Essence" — explicit return so it never falls through to the raw-text block
+      if (t.includes("essence")) return "petrol";
     }
+    // Fallback op vrije tekst — gebruik woordgrens-matching voor elektrisch
     const l = (raw ?? "").toLowerCase();
+    // Elektrisch: alleen als zelfstandig woord/afkorting, NIET als bijvoeglijk naamwoord
     if (/\belectric\b|\bbev\b|\bev\b/.test(l)) return "electric";
+    // "Elektro" (Duits voor elektrisch rijden) wel, "elektrische" (bijv. stoel) niet
     if (/\belektro\b/.test(l)) return "electric";
+    // FR: "électrique" als zelfstandig token
+    if (/\blectrique\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
-    if (l.includes("hybrid") || l.includes("phev")) return "hybrid";
+    if (l.includes("hybrid") || l.includes("phev") || l.includes("hybride")) return "hybrid";
     return "petrol";
   }
 
@@ -64,34 +90,61 @@
     return null;
   }
 
+  /**
+   * Scrapes the price from a detail/listing page.
+   *
+   * Strategy:
+   *  1. Try [data-testid="price-section"] (all locales incl. FR)
+   *  2. Fall back to [data-testid="regular-price"]
+   *  3. Generic span/strong scan
+   */
   function scrapePrice() {
+    // Strategy 1: dedicated price section wrapper (present on all locales)
     const section = document.querySelector('[data-testid="price-section"]');
-    if (!section) return null;
+    if (section) {
+      for (const span of section.querySelectorAll("span")) {
+        const directText = Array.from(span.childNodes)
+          .filter((n) => n.nodeType === Node.TEXT_NODE)
+          .map((n) => n.textContent.trim())
+          .join("");
 
-    for (const span of section.querySelectorAll("span")) {
-      const directText = Array.from(span.childNodes)
-        .filter((n) => n.nodeType === Node.TEXT_NODE)
-        .map((n) => n.textContent.trim())
-        .join("");
+        if (!directText) continue;
 
-      if (!directText) continue;
+        const isPriceOnly =
+          /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
+            directText,
+          );
+        if (!isPriceOnly) continue;
 
-      const isPriceOnly =
-        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
-          directText,
-        );
-      if (!isPriceOnly) continue;
+        const val = parsePrice(directText);
+        if (val && val > 500 && val < 10_000_000) return val;
+      }
+    }
 
-      const val = parsePrice(directText);
+    // Strategy 2: [data-testid="regular-price"] fallback
+    const regularPriceEl = document.querySelector('[data-testid="regular-price"]');
+    if (regularPriceEl) {
+      const val = parsePrice(regularPriceEl.textContent);
       if (val && val > 500 && val < 10_000_000) return val;
     }
+
+    // Strategy 3: Generic — scan all spans for a €-price pattern
+    for (const el of document.querySelectorAll("span, strong")) {
+      const text = el.textContent.trim();
+      if (!text || text.length > 30) continue;
+      if (!/[\u20ac]/.test(text)) continue;
+      const val = parsePrice(text);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+
     return null;
   }
 
   function parsePowerKw(raw) {
     if (!raw) return null;
     const kwM = raw.match(/(\d+)\s*kW/);
-    const psM = raw.match(/(\d+)\s*(PS|pk|hp|cv)/i);
+    // FR uses "Ch" for chevaux (PS), also match cv
+    const psM = raw.match(/(\d+)\s*(PS|pk|hp|cv|Ch)/i);
     if (kwM) return parseInt(kwM[1], 10);
     if (psM) return Math.round(parseInt(psM[1], 10) * 0.7355);
     return null;
@@ -123,46 +176,6 @@
     };
   }
 
-  function countryFromHostname() {
-    const h = window.location.hostname;
-    if (h.endsWith(".be")) return "BE";
-    return "DE";
-  }
-
-  function parseLocationText(text) {
-    if (!text) return null;
-    const fiveDigit = text.match(/\b(\d{5})\b/);
-    if (fiveDigit) {
-      return { postcode: fiveDigit[1], country: "DE" };
-    }
-    const fourDigit = text.match(/\b([1-9]\d{3})\b/);
-    if (fourDigit && parseInt(fourDigit[1], 10) <= 9999)
-      return { postcode: fourDigit[1], country: "BE" };
-    return null;
-  }
-
-  function scrapeLocation() {
-    const candidates = [
-      document.querySelector('[data-testid="seller-info"]'),
-      document.querySelector('[data-testid="vendor-contact"]'),
-      document.querySelector('[class*="SellerInfo"]'),
-      document.querySelector('[class*="dealer-address"]'),
-      document.querySelector('[class*="LocationWithPin"]'),
-    ];
-    for (const el of candidates) {
-      if (!el) continue;
-      const loc = parseLocationText(el.textContent.trim());
-      if (loc) return loc;
-    }
-    for (const el of document.querySelectorAll(
-      'address, [class*="location"], [class*="Location"]',
-    )) {
-      const loc = parseLocationText(el.textContent.trim());
-      if (loc) return loc;
-    }
-    return { postcode: null, country: countryFromHostname() };
-  }
-
   // ---------------------------------------------------------------------------
   // Listing page
   // ---------------------------------------------------------------------------
@@ -175,40 +188,51 @@
       "Erstzulassung",
       "First registration",
       "Eerste registratie",
+      "1\u00e8re mise en circulation",
+      "Mise en circulation",
     ]);
     const fuelRaw =
       scrapeDetailValue([
         "Kraftstoff",
         "Fuel type",
         "Brandstof",
+        "Carburant",
+        "Alimentation",
       ]) ?? "";
     const co2Raw = scrapeDetailValue([
       "CO2-Emissionen",
       "CO2 emissions",
       "CO2-uitstoot",
+      "\u00c9missions CO2",
+      "Emissions CO2",
       "CO\u2082",
     ]);
     const powerRaw = scrapeDetailValue([
       "Leistung",
       "Power",
       "Vermogen",
+      "Puissance",
     ]);
     const euroRaw = scrapeDetailValue([
       "Schadstoffklasse",
       "Emission class",
       "Emissieklasse",
+      "Classe d\u2019\u00e9mission",
+      "Classe d'emission",
       "Euro",
     ]);
     const mileageRaw = scrapeDetailValue([
       "Kilometerstand",
       "Mileage",
+      "Kilom\u00e9trage",
+      "Kilometrage",
     ]);
 
+    // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
     const fuelType = normalizeFuelType(fuelRaw, null);
     const powerKw = parsePowerKw(powerRaw);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
     const year = firstRegRaw ? parseInt(firstRegRaw.match(/\d{4}/)?.[0]) : null;
-    const location = scrapeLocation();
 
     const listing = {
       price: { value: price, unit: "EUR" },
@@ -222,8 +246,6 @@
       powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
       euroNorm: euroRaw ? { value: euroRaw } : null,
       co2: buildCO2Field(fuelType, euroRaw, powerKw, year, co2Scraped),
-      postcode: location.postcode,
-      country: location.country,
     };
 
     console.log("[CarImport] ListingInfo:", listing);
@@ -231,19 +253,16 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Search results page  (/lst/, /results/, /search/, etc.)
+  // Search results page
   // ---------------------------------------------------------------------------
 
   function scrapePriceFromCard(card) {
-    // Try known testids first
     const priceEl =
       card.querySelector('[data-testid="price"]') ??
       card.querySelector('[data-testid="listing-item-price"]') ??
       card.querySelector('[data-testid="regular-price"]') ??
-      card.querySelector('[data-testid="price-section"]') ??
       card.querySelector('[class*="Price__value"]') ??
-      card.querySelector('[class*="PriceInfo"]') ??
-      card.querySelector('[class*="price"]');
+      card.querySelector('[class*="PriceInfo"]');
 
     if (priceEl) {
       const directText = Array.from(priceEl.childNodes)
@@ -254,8 +273,7 @@
       if (val && val > 500 && val < 10_000_000) return val;
     }
 
-    // Broad fallback: any short element containing €
-    for (const el of card.querySelectorAll("span, strong, p, div")) {
+    for (const el of card.querySelectorAll("span, strong, p")) {
       const text = el.textContent.trim();
       if (!/[\u20ac]/.test(text)) continue;
       if (text.length > 30) continue;
@@ -265,31 +283,81 @@
     return null;
   }
 
-  function scrapeSearchPage() {
-    // AutoScout24 uses several data-testid variants across locales and A/B tests.
-    // We cast a wide net and deduplicate by DOM element.
-    const cardSelectors = [
-      'article[data-testid="listing-item"]',
-      'article[data-testid="listing-item-description"]',
-      'article[data-testid^="listing-"]',
-      'article[class*="ListItem"]',
-      'article[id*="listing"]',
-      // /lst/ page uses a different structure
-      'article[data-testid^="list-page-item-"]',
-      '[data-testid="list-page-item"]',
-    ];
-
-    const seen = new Set();
-    const cards = [];
-    for (const sel of cardSelectors) {
-      for (const el of document.querySelectorAll(sel)) {
-        if (!seen.has(el)) {
-          seen.add(el);
-          cards.push(el);
-        }
-      }
+  /**
+   * Parses the first-registration date from a search card.
+   *
+   * FR search cards store the date as the text content of the
+   * data-testid="VehicleDetails-calendar" pill, formatted as "MMYYYY"
+   * (e.g. "032021" or "04 2026" — no separator guaranteed).
+   * We also check the data-first-registration attribute on the article
+   * element itself (format "MM-YYYY") as a reliable fallback.
+   *
+   * DE/NL/BE cards may use a different format; the existing year-only
+   * regex is kept as a final fallback so those locales are unaffected.
+   */
+  function parseFirstRegFromCard(card) {
+    // 1. data-first-registration attribute on the article (FR: "MM-YYYY")
+    const attr = card.getAttribute("data-first-registration");
+    if (attr) {
+      // Format: "MM-YYYY" e.g. "03-2021"
+      const attrM = attr.match(/^(\d{2})-(\d{4})$/);
+      if (attrM) return `${attrM[1]}/${attrM[2]}`;
     }
 
+    // 2. Calendar pill text — FR renders "MMYYYY" (digits only, no separator)
+    const calPill = card.querySelector('[data-testid="VehicleDetails-calendar"]');
+    if (calPill) {
+      const raw = calPill.textContent.trim().replace(/\s+/g, "");
+      // "MMYYYY" — exactly 6 digits
+      const sixDigM = raw.match(/^(\d{2})(\d{4})$/);
+      if (sixDigM) return `${sixDigM[1]}/${sixDigM[2]}`;
+      // "MM/YYYY" or "MM-YYYY" already formatted
+      const slashM = raw.match(/^(\d{2})[\/\-](\d{4})$/);
+      if (slashM) return `${slashM[1]}/${slashM[2]}`;
+      // Fallback: just a year
+      const yearOnlyM = raw.match(/(19|20)(\d{2})/);
+      if (yearOnlyM) return `01/${yearOnlyM[0]}`;
+    }
+
+    // 3. Last resort: year regex on full card text
+    const yearM = card.textContent.match(/(19|20)\d{2}/);
+    if (yearM) return `01/${yearM[0]}`;
+
+    return null;
+  }
+
+  /**
+   * Parses the mileage from a search card.
+   *
+   * FR search cards expose mileage in the
+   * data-testid="VehicleDetails-mileageodometer" pill (e.g. "72 405 km").
+   * The data-mileage attribute on the article element is also reliable
+   * (integer km value, already parsed).
+   */
+  function parseMileageFromCard(card) {
+    // 1. data-mileage attribute — already an integer km value on FR cards
+    const attr = card.getAttribute("data-mileage");
+    if (attr) {
+      const val = parseInt(attr, 10);
+      if (!isNaN(val) && val >= 0) return val;
+    }
+
+    // 2. Mileage pill text
+    const mileEl = card.querySelector('[data-testid="VehicleDetails-mileageodometer"]') ??
+      card.querySelector('[data-testid="listing-item-mileage"]') ??
+      card.querySelector('[class*="Mileage"]');
+    if (mileEl) {
+      const val = parseNumber(mileEl.textContent);
+      if (val != null && val >= 0) return val;
+    }
+
+    return null;
+  }
+
+  function scrapeSearchPage() {
+    const cards = document.querySelectorAll(
+      'article[data-testid="list-item"], article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
+    );
     if (!cards.length) return null;
 
     const results = [];
@@ -299,36 +367,40 @@
 
       const allText = card.textContent;
 
-      const yearM = allText.match(/(19|20)\d{2}/);
-      const year = yearM ? parseInt(yearM[0], 10) : null;
+      const firstRegDate = parseFirstRegFromCard(card);
+      const year = firstRegDate
+        ? parseInt(firstRegDate.split("/")[1], 10)
+        : null;
 
+      // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden.
+      // FR search cards use data-testid="VehicleDetails-gaspump" for the fuel pill.
       const fuelEl =
+        card.querySelector('[data-testid="VehicleDetails-gaspump"]') ??
         card.querySelector('[data-testid="listing-item-fuel-type"]') ??
         card.querySelector('[data-testid="fuel-type"]') ??
         card.querySelector('[class*="FuelType"]') ??
         card.querySelector('[class*="fuel"]');
       const fuelType = normalizeFuelType(allText, fuelEl);
 
+      // Vermogen parsen — FR cards use data-testid="VehicleDetails-speedometer"
       const powerEl =
+        card.querySelector('[data-testid="VehicleDetails-speedometer"]') ??
         card.querySelector('[data-testid="listing-item-power"]') ??
         card.querySelector('[class*="Power"]') ??
         card.querySelector('[class*="power"]');
       const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
 
-      const country = countryFromHostname();
-      const loc = parseLocationText(allText);
+      const mileage = parseMileageFromCard(card);
 
       results.push({
         el: card,
         price: { value: price, unit: "EUR" },
-        firstRegDate: year ? { value: `01/${year}`, unit: "MM/YYYY" } : null,
+        firstRegDate: firstRegDate ? { value: firstRegDate, unit: "MM/YYYY" } : null,
         fuelType: { value: fuelType },
-        mileage: null,
+        mileage: mileage != null ? { value: mileage, unit: "km" } : null,
         powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
         euroNorm: null,
         co2: buildCO2Field(fuelType, null, powerKw, year, null),
-        postcode: loc?.postcode ?? null,
-        country,
       });
     }
     return results.length ? results : null;
