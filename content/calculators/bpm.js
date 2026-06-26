@@ -44,21 +44,21 @@
   // Gebruik: depreciationFactor(ageYears) → fractie [0.00 – 0.97]
   // -------------------------------------------------------------------------
   const DEPRECIATION_TABLE = [
-    [0,    1,    0,    4.00  ],
-    [1,    3,    4,    3.00  ],
-    [3,    5,    10,   2.50  ],
-    [5,    9,    15,   2.25  ],
-    [9,    18,   24,   1.444 ],
-    [18,   30,   37,   0.833 ],
-    [30,   42,   47,   0.833 ],
-    [42,   54,   57,   0.750 ],
-    [54,   66,   66,   0.500 ],
-    [66,   78,   72,   0.416 ],
-    [78,   90,   77,   0.416 ],
-    [90,   102,  82,   0.333 ],
-    [102,  114,  86,   0.333 ],
-    [114,  Infinity, 90, 0.083],
-  ];
+  [0, 1, 0, 12.0],
+  [1, 3, 12, 4.0],
+  [3, 5, 20, 3.5],
+  [5, 9, 27, 1.5],
+  [9, 18, 33, 1.0],
+  [18, 30, 42, 0.75],
+  [30, 42, 51, 0.5],
+  [42, 54, 57, 0.42],
+  [54, 66, 62, 0.42],
+  [66, 78, 67, 0.42],
+  [78, 90, 72, 0.25],
+  [90, 102, 75, 0.25],
+  [102, 114, 78, 0.25],
+  [114, Infinity, 81, 0.19],
+];
 
   // -------------------------------------------------------------------------
   // Geschatte CO2-waarden per brandstof + bouwjaar (fallback)
@@ -171,22 +171,18 @@
    * @param {number} ageYears - Leeftijd van het voertuig in jaren (decimaal)
    * @returns {number} Afgeschreven fractie tussen 0.00 en 0.97
    */
-  function depreciationFactor(ageYears) {
-    if (ageYears >= 25) return 1.0; // Geen BPM verschuldigd bij ≥ 25 jaar
-    const ageMonths = ageYears * 12;
-    // Voertuig ouder dan 114 maanden (9,5 jaar): 90% + 0,083% per extra maand, max 97%
-    if (ageMonths >= 114) {
-      const extra = Math.floor(ageMonths) - 114;
-      return Math.min((90 + extra * 0.083) / 100, 0.97);
+function depreciationFactor(ageYears) {
+  if (ageYears >= 25) return 1.0;
+  const months = Math.ceil(ageYears * 12);
+
+  for (const [min, max, base, incr] of DEPRECIATION_TABLE) {
+    if (months >= min && months < max) {
+      const monthsInBand = months - min;
+      return Math.min((base + monthsInBand * incr) / 100, 1);
     }
-    for (const [min, max, base, incr] of DEPRECIATION_TABLE) {
-      if (ageMonths >= min && ageMonths < max) {
-        const monthsInBand = Math.floor(ageMonths) - min;
-        return (base + monthsInBand * incr) / 100;
-      }
-    }
-    return 0;
   }
+  return 0;
+}
 
   /**
    * Bereken netto BPM (na forfaitaire afschrijving).
