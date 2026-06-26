@@ -60,7 +60,7 @@
         return "electric";
       if (t.includes("diesel")) return "diesel";
       if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
-      // FR: "électrique" / "lectrique" (with or without leading é) 
+      // FR: "électrique" / "lectrique" (with or without leading é)
       if (t.includes("lectrique")) return "electric";
       // FR: "Hybride"
       if (t.includes("hybride")) return "hybrid";
@@ -189,58 +189,58 @@
     if (!price) return null;
 
     const firstRegRaw = scrapeDetailValue([
-      "Erstzulassung",           // DE
-      "First registration",      // EN
-      "Eerste registratie",      // NL (.nl)
-      "Eerste inschrijving",     // NL-BE (.be/nl) \u2190 the fix
+      "Erstzulassung", // DE
+      "First registration", // EN
+      "Eerste registratie", // NL (.nl)
+      "Eerste inschrijving", // NL-BE (.be/nl) \u2190 the fix
       "1\u00e8re mise en circulation", // FR
       "Bouwjaar",
-      "Mise en circulation",     // FR fallback
-      "Année"
+      "Mise en circulation", // FR fallback
+      "Année",
     ]);
     const fuelRaw =
       scrapeDetailValue([
-        "Kraftstoff",   // DE
+        "Kraftstoff", // DE
         "Anderer Energieträger",
-        "Fuel type",    // EN
-        "Brandstof",    // NL/BE
-        "Carburant",    // FR
+        "Fuel type", // EN
+        "Brandstof", // NL/BE
+        "Carburant", // FR
         "Alimentation", // FR alt
       ]) ?? "";
     const co2Raw = scrapeDetailValue([
-      "CO2-Emissionen",            // DE
-      "CO2 emissions",             // EN
-      "CO2-uitstoot",              // NL
-      "CO2-emissies",              // NL-BE \u2190 added
+      "CO2-Emissionen", // DE
+      "CO2 emissions", // EN
+      "CO2-uitstoot", // NL
+      "CO2-emissies", // NL-BE \u2190 added
       "CO2-emissie",
-      "\u00c9missions CO2",        // FR (uppercase \u00c9)
+      "\u00c9missions CO2", // FR (uppercase \u00c9)
       "Émissions de CO2",
-      "Emissions CO2",             // FR plain
-      "\u00e9missions de CO2",     // FR lower
-      "CO\u2082",                  // generic fallback
+      "Emissions CO2", // FR plain
+      "\u00e9missions de CO2", // FR lower
+      "CO\u2082", // generic fallback
     ]);
     const powerRaw = scrapeDetailValue([
-      "Leistung",  // DE
-      "Power",     // EN
-      "Vermogen",  // NL/BE
+      "Leistung", // DE
+      "Power", // EN
+      "Vermogen", // NL/BE
       "Puissance", // FR
       "Puissance kW (CH)",
     ]);
     const euroRaw = scrapeDetailValue([
-      "Schadstoffklasse",           // DE
-      "Emission class",             // EN
-      "Emissieklasse",              // NL
-      "Emissieklasse",              // NL-BE (same)
+      "Schadstoffklasse", // DE
+      "Emission class", // EN
+      "Emissieklasse", // NL
+      "Emissieklasse", // NL-BE (same)
       "Classe d\u2019\u00e9mission", // FR
-      "Classe d'emission",          // FR plain
+      "Classe d'emission", // FR plain
       "Carburant",
-      "Euro",                       // generic fallback
+      "Euro", // generic fallback
     ]);
     const mileageRaw = scrapeDetailValue([
-      "Kilometerstand",  // DE/NL/BE
-      "Mileage",         // EN
+      "Kilometerstand", // DE/NL/BE
+      "Mileage", // EN
       "Kilom\u00e9trage", // FR
-      "Kilometrage",     // FR plain
+      "Kilometrage", // FR plain
     ]);
 
     // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
@@ -383,7 +383,15 @@
       const price = scrapePriceFromCard(card);
       if (!price) continue;
 
-      const allText = card.textContent;
+      const allText = Array.from(card.querySelectorAll("*"))
+        .map((el) => el.childNodes)
+        .reduce((acc, nodes) => {
+          for (const n of nodes)
+            if (n.nodeType === Node.TEXT_NODE) acc.push(n.textContent.trim());
+          return acc;
+        }, [])
+        .filter(Boolean)
+        .join(" ");
 
       const firstRegDate = parseFirstRegFromCard(card);
       const year = firstRegDate
