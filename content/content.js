@@ -39,12 +39,11 @@
       isListing: () =>
         /\/(angebote|annonces|offres|aanbod|annunci|listings)\//.test(path),
       listingAnchor: () =>
-        // FR detail page has no price-section wrapper; fall back to the
-        // regular-price span itself so we can insert afterend.
         document.querySelector('[data-testid="price-section"]') ??
         document.querySelector('[data-testid="regular-price"]'),
       listingInsertMethod: () => "afterend",
-      searchCardWrapper: (cardEl) => cardEl,
+      // null = append inside the card (no container gap)
+      searchCardWrapper: () => null,
     },
     {
       name: "mobile.de",
@@ -55,11 +54,6 @@
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
-      // DOM (verified Jun 2026):
-      //   <article data-testid="vip-price-box">
-      //     <section>  ← price + financing
-      //   </article>
-      // Insert after <section> so widget stays inside the article (right column).
       listingAnchor: () => {
         const priceBox = document.querySelector(
           'article[data-testid="vip-price-box"]',
@@ -76,7 +70,8 @@
           return "beforeend";
         return "afterend";
       },
-      searchCardWrapper: (cardEl) => cardEl,
+      // null = append inside the card (no container gap)
+      searchCardWrapper: () => null,
     },
   ];
 

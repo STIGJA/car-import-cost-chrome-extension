@@ -72,21 +72,20 @@
 
 /* --------------------------------------------------------------------------
    ZOEKPAGINA — .cic-compact
-   Geplaatst als sibling ná de kaart — neemt de volledige breedte van de
-   parent-container aan (dezelfde als de kaart erboven).
+   Geplaatst als laatste kind BINNEN de kaart (via appendChild).
+   Een scheidingslijn bovenaan zorgt voor visuele scheiding van de
+   kaartinhoud zonder afhankelijk te zijn van de container-gap.
    -------------------------------------------------------------------------- */
 
 .cic-compact {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-top: none;          /* visueel geplakt aan de kaart */
-  border-radius: 0 0 8px 8px;
+  border-top: 1px solid #dee2e6;
   padding: 8px 12px;
+  margin: 8px -0px -0px;   /* flush met de kaartrand aan de zijkanten */
   box-sizing: border-box;
   color: #212529;
-  /* Volledige breedte: als sibling in dezelfde flex/grid container als de kaart */
   width: 100%;
   display: block;
 }
@@ -118,7 +117,7 @@
 }
 
 .cic-compact-total td {
-  font-size:16px;
+  font-size: 16px;
   font-weight: 700;
   border-top: 1px solid #ced4da;
   padding-top: 4px;
