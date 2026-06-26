@@ -40,9 +40,7 @@
     },
     {
       "matches": [
-        "*://suchen.mobile.de/*",
-        "*://www.mobile.de/*",
-        "*://mobile.de/*"
+        "*://suchen.mobile.de/*"
       ],
       "js": [
         "content/lookups/co2-lookup.js",
