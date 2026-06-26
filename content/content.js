@@ -16,7 +16,7 @@
 
   const settings = await new Promise((resolve) =>
     chrome.storage.sync.get(
-      { postcode: "", fixedCosts: 170, transportByCountry: null },
+      { fixedCosts: 170, transportByCountry: null },
       resolve,
     ),
   );
