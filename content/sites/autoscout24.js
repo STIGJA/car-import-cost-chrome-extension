@@ -76,6 +76,8 @@
     if (/\bstrom\b/.test(l)) return "electric";
     // FR: "électrique" als zelfstandig token
     if (/\belectrique\b/.test(l)) return "electric";
+    if (/\belektrisch\b/.test(l)) return "electric";   
+     if (/\bstroom\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
     if (l.includes("hybrid") || l.includes("phev") || l.includes("hybride"))
       return "hybrid";
@@ -202,6 +204,7 @@
       scrapeDetailValue([
         "Kraftstoff", // DE
         "Anderer Energieträger",
+        "Andere brandstoftypes",
         "Fuel type", // EN
         "Brandstof", // NL/BE
         "Carburant", // FR
