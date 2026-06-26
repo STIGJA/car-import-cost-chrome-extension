@@ -67,32 +67,47 @@
       calc: () => window.CIC_NL,
       isListing: () => path.startsWith("/fahrzeuge/details.html"),
       listingAnchor: () => {
-        // mobile.de detail page — there is no article[data-testid="vip-price-box"].
-        // The price label [data-testid="vip-price-label"] is the most reliable
-        // anchor. Walk up to its nearest section or div container so we can
-        // insert the widget after the entire price block, not just the label.
+        // mobile.de detail page DOM structure:
+        //   <div data-testid="vip-price-box">
+        //     <section>
+        //       ...
+        //       <div data-testid="vip-price-label">17.860 €</div>
+        //       ...
+        //     </section>
+        //   </div>
+        //
+        // We want to insert the widget AFTER the entire vip-price-box div.
+        // Walk up from the price label and stop as soon as we find an ancestor
+        // with data-testid="vip-price-box". Fall back to section / article if
+        // the structure ever changes.
+
+        // 1. Try the vip-price-box container directly first
+        const priceBox = document.querySelector('[data-testid="vip-price-box"]');
+        if (priceBox) return priceBox;
+
+        // 2. Walk up from the price label (up to 8 levels)
         const priceLabel =
           document.querySelector('[data-testid="vip-price-label"]') ??
           document.querySelector('[data-testid="price-label"]') ??
           document.querySelector('[data-testid="vip-price"]');
 
         if (priceLabel) {
-          // Walk up max 4 levels to find a meaningful container
-          // (section, article, or a div that is a direct child of the sidebar)
           let el = priceLabel;
-          for (let i = 0; i < 4; i++) {
+          for (let i = 0; i < 8; i++) {
             const parent = el.parentElement;
             if (!parent) break;
+            // Stop at the dedicated price box
+            if (parent.getAttribute("data-testid") === "vip-price-box") return parent;
             const tag = parent.tagName.toLowerCase();
             if (tag === "section" || tag === "article") return parent;
-            // Stop if the parent is clearly the sidebar/page root
+            // Stop if we've reached a layout root
             if (tag === "aside" || tag === "main" || tag === "body") return el;
             el = parent;
           }
           return el;
         }
 
-        // Broad fallbacks
+        // 3. Broad fallbacks
         return (
           document.querySelector('[data-testid="vehicle-detail-main"]') ??
           document.querySelector('[data-testid="vip-contact-box"]') ??
