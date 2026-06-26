@@ -61,6 +61,9 @@
         return "electric";
       if (t.includes("diesel")) return "diesel";
       if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
+      // FR: "électrique", "Essence", "Hybride"
+      if (t.includes("lectrique")) return "electric";
+      if (t.includes("hybride")) return "hybrid";
     }
     // Fallback op vrije tekst — gebruik woordgrens-matching voor elektrisch
     const l = (raw ?? "").toLowerCase();
@@ -68,8 +71,10 @@
     if (/\belectric\b|\bbev\b|\bev\b/.test(l)) return "electric";
     // "Elektro" (Duits voor elektrisch rijden) wel, "elektrische" (bijv. stoel) niet
     if (/\belektro\b/.test(l)) return "electric";
+    // FR: "électrique" als zelfstandig token
+    if (/\blectrique\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
-    if (l.includes("hybrid") || l.includes("phev")) return "hybrid";
+    if (l.includes("hybrid") || l.includes("phev") || l.includes("hybride")) return "hybrid";
     return "petrol";
   }
 
@@ -83,34 +88,61 @@
     return null;
   }
 
+  /**
+   * Scrapes the price from a detail/listing page.
+   *
+   * Strategy:
+   *  1. Try [data-testid="price-section"] (autoscout24.de / .nl / .be)
+   *  2. Fall back to [data-testid="regular-price"] which is present on
+   *     autoscout24.fr and is the same element used in search cards.
+   */
   function scrapePrice() {
+    // Strategy 1: DE/NL/BE — dedicated price section wrapper
     const section = document.querySelector('[data-testid="price-section"]');
-    if (!section) return null;
+    if (section) {
+      for (const span of section.querySelectorAll("span")) {
+        const directText = Array.from(span.childNodes)
+          .filter((n) => n.nodeType === Node.TEXT_NODE)
+          .map((n) => n.textContent.trim())
+          .join("");
 
-    for (const span of section.querySelectorAll("span")) {
-      const directText = Array.from(span.childNodes)
-        .filter((n) => n.nodeType === Node.TEXT_NODE)
-        .map((n) => n.textContent.trim())
-        .join("");
+        if (!directText) continue;
 
-      if (!directText) continue;
+        const isPriceOnly =
+          /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
+            directText,
+          );
+        if (!isPriceOnly) continue;
 
-      const isPriceOnly =
-        /^[\u20ac\s\u00a0\d.,\u00b9\u00b2\u00b3\u2070-\u2079]+$/.test(
-          directText,
-        );
-      if (!isPriceOnly) continue;
+        const val = parsePrice(directText);
+        if (val && val > 500 && val < 10_000_000) return val;
+      }
+    }
 
-      const val = parsePrice(directText);
+    // Strategy 2: FR — [data-testid="regular-price"] is present directly on the page
+    const regularPriceEl = document.querySelector('[data-testid="regular-price"]');
+    if (regularPriceEl) {
+      const val = parsePrice(regularPriceEl.textContent);
       if (val && val > 500 && val < 10_000_000) return val;
     }
+
+    // Strategy 3: Generic — scan all spans for a €-price pattern
+    for (const el of document.querySelectorAll("span, strong")) {
+      const text = el.textContent.trim();
+      if (!text || text.length > 30) continue;
+      if (!/[\u20ac]/.test(text)) continue;
+      const val = parsePrice(text);
+      if (val && val > 500 && val < 10_000_000) return val;
+    }
+
     return null;
   }
 
   function parsePowerKw(raw) {
     if (!raw) return null;
     const kwM = raw.match(/(\d+)\s*kW/);
-    const psM = raw.match(/(\d+)\s*(PS|pk|hp|cv)/i);
+    // FR uses "Ch" for chevaux (PS), also match cv
+    const psM = raw.match(/(\d+)\s*(PS|pk|hp|cv|Ch)/i);
     if (kwM) return parseInt(kwM[1], 10);
     if (psM) return Math.round(parseInt(psM[1], 10) * 0.7355);
     return null;
@@ -142,8 +174,49 @@
     };
   }
 
+  /**
+   * Parses a location text and returns { postcode, country }.
+   *
+   * Supported formats:
+   *  - DE: "12345 Berlin"  → { postcode: "12345", country: "DE" }
+   *  - FR: "FR-75002 Paris" or plain "75002" → { postcode: "75002", country: "FR" }
+   *  - BE: "1234 Brussel"  → { postcode: "1234",  country: "BE" }
+   *
+   * Country detection order:
+   *  1. Explicit "FR-" or "DE-" prefix in the text
+   *  2. 4-digit postcode → BE
+   *  3. 5-digit postcode → check page hostname for .fr, else DE
+   */
+  function parseLocationText(text) {
+    if (!text) return null;
+
+    // Explicit FR prefix (autoscout24.fr dealer addresses: "FR-75002 Paris")
+    const frPrefixed = text.match(/\bFR-(\d{5})\b/);
+    if (frPrefixed) return { postcode: frPrefixed[1], country: "FR" };
+
+    // Explicit DE prefix
+    const dePrefixed = text.match(/\bDE-(\d{5})\b/);
+    if (dePrefixed) return { postcode: dePrefixed[1], country: "DE" };
+
+    // 5-digit postcode — infer country from hostname
+    const fiveDigit = text.match(/\b(\d{5})\b/);
+    if (fiveDigit) {
+      const country = window.location.hostname.includes(".fr") ? "FR" : "DE";
+      return { postcode: fiveDigit[1], country };
+    }
+
+    // 4-digit postcode → BE
+    const fourDigit = text.match(/\b([1-9]\d{3})\b/);
+    if (fourDigit && parseInt(fourDigit[1], 10) < 9999)
+      return { postcode: fourDigit[1], country: "BE" };
+
+    return null;
+  }
+
   function scrapeLocation() {
     const candidates = [
+      // FR detail page: <span data-testid="dealer-address">
+      document.querySelector('[data-testid="dealer-address"]'),
       document.querySelector('[data-testid="seller-info"]'),
       document.querySelector('[data-testid="vendor-contact"]'),
       document.querySelector('[class*="SellerInfo"]'),
@@ -164,16 +237,6 @@
     return { postcode: null, country: null };
   }
 
-  function parseLocationText(text) {
-    if (!text) return null;
-    const de = text.match(/\b(\d{5})\b/);
-    if (de) return { postcode: de[1], country: "DE" };
-    const be = text.match(/\b([1-9]\d{3})\b/);
-    if (be && parseInt(be[1], 10) < 9999)
-      return { postcode: be[1], country: "BE" };
-    return null;
-  }
-
   // ---------------------------------------------------------------------------
   // Listing page
   // ---------------------------------------------------------------------------
@@ -187,6 +250,7 @@
       "First registration",
       "Eerste registratie",
       "1\u00e8re mise en circulation",
+      "Mise en circulation",
     ]);
     const fuelRaw =
       scrapeDetailValue([
@@ -194,12 +258,14 @@
         "Fuel type",
         "Brandstof",
         "Carburant",
+        "Alimentation",
       ]) ?? "";
     const co2Raw = scrapeDetailValue([
       "CO2-Emissionen",
       "CO2 emissions",
       "CO2-uitstoot",
       "\u00c9missions CO2",
+      "Emissions CO2",
       "CO\u2082",
     ]);
     const powerRaw = scrapeDetailValue([
@@ -213,12 +279,14 @@
       "Emission class",
       "Emissieklasse",
       "Classe d\u2019\u00e9mission",
+      "Classe d'emission",
       "Euro",
     ]);
     const mileageRaw = scrapeDetailValue([
       "Kilometerstand",
       "Mileage",
       "Kilom\u00e9trage",
+      "Kilometrage",
     ]);
 
     // Op de advertentiepagina is fuelRaw een specifiek veld, geef null mee als fuelEl
@@ -281,7 +349,7 @@
 
   function scrapeSearchPage() {
     const cards = document.querySelectorAll(
-      'article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
+      'article[data-testid="list-item"], article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
     );
     if (!cards.length) return null;
 
@@ -295,22 +363,35 @@
       const yearM = allText.match(/(19|20)\d{2}/);
       const year = yearM ? parseInt(yearM[0], 10) : null;
 
-      // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden
+      // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden.
+      // FR search cards use data-testid="VehicleDetails-gaspump" for the fuel pill.
       const fuelEl =
+        card.querySelector('[data-testid="VehicleDetails-gaspump"]') ??
         card.querySelector('[data-testid="listing-item-fuel-type"]') ??
         card.querySelector('[data-testid="fuel-type"]') ??
         card.querySelector('[class*="FuelType"]') ??
         card.querySelector('[class*="fuel"]');
       const fuelType = normalizeFuelType(allText, fuelEl);
 
-      // Vermogen parsen uit kaart voor betere CO2 schatting
+      // Vermogen parsen — FR cards use data-testid="VehicleDetails-speedometer"
       const powerEl =
+        card.querySelector('[data-testid="VehicleDetails-speedometer"]') ??
         card.querySelector('[data-testid="listing-item-power"]') ??
         card.querySelector('[class*="Power"]') ??
         card.querySelector('[class*="power"]');
       const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
 
-      const loc = parseLocationText(allText);
+      // Location — FR cards use data-testid="dealer-address"
+      const locEl =
+        card.querySelector('[data-testid="dealer-address"]') ??
+        card.querySelector('[class*="SellerAddress"]') ??
+        card.querySelector('[class*="dealer-address"]');
+      const loc = locEl
+        ? parseLocationText(locEl.textContent.trim())
+        : parseLocationText(allText);
+
+      // Infer default country from hostname when no postcode found
+      const defaultCountry = window.location.hostname.includes(".fr") ? "FR" : "DE";
 
       results.push({
         el: card,
@@ -322,7 +403,7 @@
         euroNorm: null,
         co2: buildCO2Field(fuelType, null, powerKw, year, null),
         postcode: loc?.postcode ?? null,
-        country: loc?.country ?? "DE",
+        country: loc?.country ?? defaultCountry,
       });
     }
     return results.length ? results : null;

@@ -30,9 +30,19 @@
       match: () => host.includes("autoscout24"),
       scraper: () => window.CIC_AS24,
       calc: () => window.CIC_NL,
-      isListing: () => /\/(angebote|annonces|aanbod|annunci)\//.test(path),
+      // Detail page URL patterns per locale:
+      //   DE/AT/CH: /angebote/
+      //   FR:       /offres/
+      //   NL/BE:    /aanbod/
+      //   IT:       /annunci/
+      //   EN:       /listings/ (future-proof)
+      isListing: () =>
+        /\/(angebote|annonces|offres|aanbod|annunci|listings)\//.test(path),
       listingAnchor: () =>
-        document.querySelector('[data-testid="price-section"]'),
+        // FR detail page has no price-section wrapper; fall back to the
+        // regular-price span itself so we can insert afterend.
+        document.querySelector('[data-testid="price-section"]') ??
+        document.querySelector('[data-testid="regular-price"]'),
       listingInsertMethod: () => "afterend",
       searchCardWrapper: (cardEl) => cardEl,
     },
