@@ -16,7 +16,7 @@ export const TRANSPORT_DEFAULTS = {
 };
 
 export const SETTING_DEFAULTS = {
-  fixedCosts:         170,
+  fixedCosts:         200,
   transportByCountry: TRANSPORT_DEFAULTS,
 
 };
