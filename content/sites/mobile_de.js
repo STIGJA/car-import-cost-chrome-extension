@@ -12,8 +12,6 @@
  *   CO2              : [data-testid="envkv.co2Emissions-item"]→ "CO\u2082-Emissionen (komb.)\u00b2143\u00a0g/km"
  *   Eerste registratie: [data-testid="firstRegistration-item"] → "Erstzulassung03/2019"
  *   Euro-norm        : [data-testid="emissionClass-item"]     → "SchadstoffklasseEuro6"
- *   Adres (locatie)  : [data-testid="vip-dealer-box-seller-address2"] → "DE-16244 Schorfheide"
- *                      fallback: [data-testid="vehicle-location-badge"]
  *
  * ZOEKPAGINA (suchen.mobile.de/fahrzeuge/search.html):
  *   Kaart container  : [data-testid^="result-listing-"] gefilterd op /^result-listing-\d+$/
@@ -222,30 +220,6 @@
       ? (euroRaw.match(/Euro\s*\d[a-z]?/i)?.[0] ?? null)
       : null;
 
-    // --- Locatie ---
-    // Voorkeur: [data-testid="vip-dealer-box-seller-address2"] → "DE-16244 Schorfheide"
-    // Fallback : [data-testid="vehicle-location-badge"]
-    //            [data-testid="seller-title-address"]
-    const addrSelectors = [
-      '[data-testid="vip-dealer-box-seller-address2"]',
-      '[data-testid="vehicle-location-badge"]',
-      '[data-testid="seller-title-address"]',
-    ];
-    let postcode = null;
-    let country = null;
-    for (const sel of addrSelectors) {
-      const el = document.querySelector(sel);
-      if (!el) continue;
-      const text = cleanText(el);
-      // Patroon: optioneel "DE-" gevolgd door 5 cijfers
-      const m = text.match(/(?:([A-Z]{2})-)?\b(\d{5})\b/);
-      if (m) {
-        postcode = m[2];
-        country = m[1] ?? "DE"; // mobile.de is Duits platform
-        break;
-      }
-    }
-
     const year = firstRegDate
       ? parseInt(firstRegDate.value.split("/")[1])
       : null;
@@ -258,8 +232,6 @@
       powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
       euroNorm: euroNorm ? { value: euroNorm } : null,
       co2: buildCO2Field(fuelType, euroNorm, powerKw, year, co2Scraped),
-      postcode,
-      country,
     };
 
     console.log("[CarImport] ListingInfo (mobile.de):", listing);
@@ -335,11 +307,6 @@
       const attrsText = attrsEl ? cleanText(attrsEl) : "";
       const attrs = parseAttributesText(attrsText);
 
-      // Locatie: 5-cijferige postcode in kaart-tekst
-      const cardText = cleanText(card);
-      const postcodeM = cardText.match(/\b(\d{5})\b/);
-      const postcode = postcodeM ? postcodeM[1] : null;
-
       const year = attrs.firstRegDate
         ? parseInt(attrs.firstRegDate.value.split("/")[1])
         : null;
@@ -355,8 +322,6 @@
         powerKw: attrs.powerKw ?? null,
         euroNorm: null,
         co2: buildCO2Field(fuelType, null, powerKw, year, null),
-        postcode,
-        country: postcode ? "DE" : null,
       });
     }
 

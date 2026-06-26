@@ -10,8 +10,6 @@
  *   powerKw:      { value: number, unit: 'kW' } | null
  *   euroNorm:     { value: string } | null
  *   co2:          { value: number, unit: 'g/km', source, method, confidence }
- *   postcode:     string | null
- *   country:      string | null
  *   el:           Element  (search page only)
  * }
  */
@@ -174,69 +172,6 @@
     };
   }
 
-  /**
-   * Parses a location text and returns { postcode, country }.
-   *
-   * Supported formats:
-   *  - DE: "12345 Berlin"  → { postcode: "12345", country: "DE" }
-   *  - FR: "FR-75002 Paris" or plain "75002" → { postcode: "75002", country: "FR" }
-   *  - BE: "1234 Brussel"  → { postcode: "1234",  country: "BE" }
-   *
-   * Country detection order:
-   *  1. Explicit "FR-" or "DE-" prefix in the text
-   *  2. 4-digit postcode → BE
-   *  3. 5-digit postcode → check page hostname for .fr, else DE
-   */
-  function parseLocationText(text) {
-    if (!text) return null;
-
-    // Explicit FR prefix (autoscout24.fr dealer addresses: "FR-75002 Paris")
-    const frPrefixed = text.match(/\bFR-(\d{5})\b/);
-    if (frPrefixed) return { postcode: frPrefixed[1], country: "FR" };
-
-    // Explicit DE prefix
-    const dePrefixed = text.match(/\bDE-(\d{5})\b/);
-    if (dePrefixed) return { postcode: dePrefixed[1], country: "DE" };
-
-    // 5-digit postcode — infer country from hostname
-    const fiveDigit = text.match(/\b(\d{5})\b/);
-    if (fiveDigit) {
-      const country = window.location.hostname.includes(".fr") ? "FR" : "DE";
-      return { postcode: fiveDigit[1], country };
-    }
-
-    // 4-digit postcode → BE
-    const fourDigit = text.match(/\b([1-9]\d{3})\b/);
-    if (fourDigit && parseInt(fourDigit[1], 10) < 9999)
-      return { postcode: fourDigit[1], country: "BE" };
-
-    return null;
-  }
-
-  function scrapeLocation() {
-    const candidates = [
-      // FR detail page: <span data-testid="dealer-address">
-      document.querySelector('[data-testid="dealer-address"]'),
-      document.querySelector('[data-testid="seller-info"]'),
-      document.querySelector('[data-testid="vendor-contact"]'),
-      document.querySelector('[class*="SellerInfo"]'),
-      document.querySelector('[class*="dealer-address"]'),
-      document.querySelector('[class*="LocationWithPin"]'),
-    ];
-    for (const el of candidates) {
-      if (!el) continue;
-      const loc = parseLocationText(el.textContent.trim());
-      if (loc) return loc;
-    }
-    for (const el of document.querySelectorAll(
-      'address, [class*="location"], [class*="Location"]',
-    )) {
-      const loc = parseLocationText(el.textContent.trim());
-      if (loc) return loc;
-    }
-    return { postcode: null, country: null };
-  }
-
   // ---------------------------------------------------------------------------
   // Listing page
   // ---------------------------------------------------------------------------
@@ -294,7 +229,6 @@
     const powerKw = parsePowerKw(powerRaw);
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
     const year = firstRegRaw ? parseInt(firstRegRaw.match(/\d{4}/)?.[0]) : null;
-    const location = scrapeLocation();
 
     const listing = {
       price: { value: price, unit: "EUR" },
@@ -308,8 +242,6 @@
       powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
       euroNorm: euroRaw ? { value: euroRaw } : null,
       co2: buildCO2Field(fuelType, euroRaw, powerKw, year, co2Scraped),
-      postcode: location.postcode,
-      country: location.country,
     };
 
     console.log("[CarImport] ListingInfo:", listing);
@@ -381,18 +313,6 @@
         card.querySelector('[class*="power"]');
       const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
 
-      // Location — FR cards use data-testid="dealer-address"
-      const locEl =
-        card.querySelector('[data-testid="dealer-address"]') ??
-        card.querySelector('[class*="SellerAddress"]') ??
-        card.querySelector('[class*="dealer-address"]');
-      const loc = locEl
-        ? parseLocationText(locEl.textContent.trim())
-        : parseLocationText(allText);
-
-      // Infer default country from hostname when no postcode found
-      const defaultCountry = window.location.hostname.includes(".fr") ? "FR" : "DE";
-
       results.push({
         el: card,
         price: { value: price, unit: "EUR" },
@@ -402,8 +322,6 @@
         powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
         euroNorm: null,
         co2: buildCO2Field(fuelType, null, powerKw, year, null),
-        postcode: loc?.postcode ?? null,
-        country: loc?.country ?? defaultCountry,
       });
     }
     return results.length ? results : null;
