@@ -190,9 +190,7 @@
     const price = scrapePrice();
     if (!price) return null;
 
-    const host = window.location.hostname.toLowerCase();
-    const countryMatch = host.match(/\.([a-z]{2})$/);
-    const country = countryMatch ? countryMatch[1] : null;
+    const country = detectListingPageCountry();
     const importRelevant = country !== "nl";
 
     const firstRegRaw = scrapeDetailValue([
@@ -306,6 +304,38 @@
       if (val && val > 500 && val < 10_000_000) return val;
     }
     return null;
+  }
+
+  function detectListingPageCountry() {
+    // 1. Dealer address prefix, e.g. "NL-9502 EC STADSKANAAL"
+    const addressEl = document.querySelector(
+      '[data-testid="dealer-address"], [data-testid="vendor-contact-address"]',
+    );
+    const addressText = addressEl?.textContent?.trim() ?? "";
+    const prefixMatch = addressText.match(/\b([A-Z]{2})-/i);
+    if (prefixMatch) {
+      const c = normalizeCountryCode(prefixMatch[1]);
+      if (c) return c;
+    }
+
+    // 2. JSON-LD schema — addressCountry on the offer
+    const jsonEl = document.querySelector('script[type="application/ld+json"]');
+    if (jsonEl) {
+      try {
+        const data = JSON.parse(jsonEl.textContent);
+        const addressCountry =
+          data?.offers?.offeredBy?.address?.addressCountry ??
+          data?.offeredBy?.address?.addressCountry;
+        if (addressCountry) {
+          const c = normalizeCountryCode(addressCountry);
+          if (c) return c;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Last resort: hostname TLD (locale, not car origin — least reliable)
+    const tldMatch = window.location.hostname.match(/\.([a-z]{2})$/);
+    return tldMatch ? tldMatch[1] : null;
   }
 
   /**
