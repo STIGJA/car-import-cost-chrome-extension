@@ -1,21 +1,25 @@
 /**
  * mobile_de.js — Scraper voor Mobile.de
  *
- * Selectors geverifieerd via opgeslagen detailpagina (Mazda CX-5, juni 2026).
+ * Selectors geverifieerd via opgeslagen detailpagina (Peugeot 2008, juni 2026).
  *
  * DETAILPAGINA (suchen.mobile.de/fahrzeuge/details.html?id=XXXXX):
- *   Prijs (prim.)    : [data-testid="vip-price-label"]        → "16.990\u00a0€"
+ *   Prijs (prim.)    : [data-testid="vip-price-label"]        → "17.860\u00a0€"
  *   Prijs (alt.)     : [data-testid="price-label"],
  *                      [data-testid="vip-price"],
  *                      [class*="price"] containing € sign
- *   Kilometerstand   : [data-testid="mileage-item"]
- *   Vermogen         : [data-testid="power-item"]
- *   Brandstof        : [data-testid="envkv.engineType-item"] / [data-testid="fuel-item"]
+ *   Kilometerstand   : [data-testid="mileage-item"]           ← <dt> element zelf
+ *   Vermogen         : [data-testid="power-item"]             ← <dt> element zelf
+ *   Brandstof        : [data-testid="fuel-item"]              ← <dt> element zelf
  *   CO2              : [data-testid="envkv.co2Emissions-item"]
- *   Eerste registratie: [data-testid="firstRegistration-item"]
- *   Euro-norm        : [data-testid="emissionClass-item"]
+ *   Eerste registratie: [data-testid="firstRegistration-item"] ← <dt> element zelf
+ *   Euro-norm        : [data-testid="emissionClass-item"]     ← <dt> element zelf
  *   Adres (locatie)  : [data-testid="vip-dealer-box-seller-address2"]
  *                      fallback: [data-testid="vehicle-location-badge"]
+ *
+ * NOTE: Op de detailpagina staan de data-testid attributen op de <dt> elementen
+ * zelf (niet op een wrapper). readItemValue leest daarom el.nextElementSibling
+ * als el een <dt> is.
  *
  * ZOEKPAGINA (suchen.mobile.de/fahrzeuge/search.html):
  *   Kaart container  : [data-testid^="result-listing-"] filtered on /^result-listing-\d+$/
@@ -54,16 +58,41 @@
     return clone.textContent.replace(/\s+/g, " ").trim();
   }
 
+  /**
+   * readItemValue — leest de waarde van een data-testid element.
+   *
+   * Op de mobile.de detailpagina staat data-testid op de <dt> zelf:
+   *   <dt data-testid="mileage-item">Kilometerstand</dt>
+   *   <dd>53.700 km</dd>
+   *
+   * De functie probeert in volgorde:
+   *  1. el is zelf een <dt> → lees el.nextElementSibling als dat een <dd> is
+   *  2. el bevat een <dt><dd> paar → lees de <dd>
+   *  3. el bevat een <dd> direct → lees die
+   *  4. Volledige tekst met label-stripping als fallback
+   */
   function readItemValue(testid, labelStrings) {
     const el = document.querySelector(`[data-testid="${testid}"]`);
     if (!el) return null;
+
+    // Case 1: element IS the <dt> — value is in the next sibling <dd>
+    if (el.tagName === "DT") {
+      const sibling = el.nextElementSibling;
+      if (sibling && sibling.tagName === "DD") return cleanText(sibling);
+    }
+
+    // Case 2: element contains a <dt><dd> pair
     const dt = el.querySelector("dt");
     if (dt) {
       const dd = dt.nextElementSibling;
       if (dd && dd.tagName === "DD") return cleanText(dd);
     }
+
+    // Case 3: element contains a <dd> directly
     const dd = el.querySelector("dd");
     if (dd) return cleanText(dd);
+
+    // Case 4: full text with label stripping
     const full = cleanText(el);
     if (labelStrings) {
       for (const lbl of labelStrings) {
@@ -217,7 +246,7 @@
       const el = document.querySelector(sel);
       if (!el) continue;
       const text = cleanText(el);
-      const m = text.match(/(?:([A-Z]{2})-)?\b(\d{5})\b/);
+      const m = text.match(/(?:([A-Z]{2})-)?\\b(\\d{5})\\b/);
       if (m) {
         postcode = m[2];
         country = m[1] ?? "DE";
