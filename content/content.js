@@ -53,7 +53,12 @@
         host === "mobile.de",
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
-      isListing: () => path.startsWith("/fahrzeuge/details.html"),
+      // Listing URL patterns:
+      //   New-style: /fahrzeuge/details.html?id=XXXXX
+      //   Old-style: /auto-inserat/<slug>/<id>.html
+      isListing: () =>
+        path.startsWith("/fahrzeuge/details.html") ||
+        path.startsWith("/auto-inserat/"),
       listingAnchor: () => {
         const priceBox = document.querySelector(
           'article[data-testid="vip-price-box"]',
