@@ -76,7 +76,8 @@
     // FR: "électrique" als zelfstandig token
     if (/\blectrique\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
-    if (l.includes("hybrid") || l.includes("phev") || l.includes("hybride")) return "hybrid";
+    if (l.includes("hybrid") || l.includes("phev") || l.includes("hybride"))
+      return "hybrid";
     return "petrol";
   }
 
@@ -122,7 +123,9 @@
     }
 
     // Strategy 2: [data-testid="regular-price"] fallback
-    const regularPriceEl = document.querySelector('[data-testid="regular-price"]');
+    const regularPriceEl = document.querySelector(
+      '[data-testid="regular-price"]',
+    );
     if (regularPriceEl) {
       const val = parsePrice(regularPriceEl.textContent);
       if (val && val > 500 && val < 10_000_000) return val;
@@ -203,8 +206,9 @@
       "CO2-Emissionen",
       "CO2 emissions",
       "CO2-uitstoot",
-      "\u00c9missions CO2",
+      "\u00c9missions CO2", // Émissions CO2  (uppercase É, no "de")
       "Emissions CO2",
+      "\u00e9missions de CO2", // émissions de CO2  (FR listing page ← the fix)
       "CO\u2082",
     ]);
     const powerRaw = scrapeDetailValue([
@@ -305,7 +309,9 @@
     }
 
     // 2. Calendar pill text — FR renders "MMYYYY" (digits only, no separator)
-    const calPill = card.querySelector('[data-testid="VehicleDetails-calendar"]');
+    const calPill = card.querySelector(
+      '[data-testid="VehicleDetails-calendar"]',
+    );
     if (calPill) {
       const raw = calPill.textContent.trim().replace(/\s+/g, "");
       // "MMYYYY" — exactly 6 digits
@@ -343,7 +349,8 @@
     }
 
     // 2. Mileage pill text
-    const mileEl = card.querySelector('[data-testid="VehicleDetails-mileageodometer"]') ??
+    const mileEl =
+      card.querySelector('[data-testid="VehicleDetails-mileageodometer"]') ??
       card.querySelector('[data-testid="listing-item-mileage"]') ??
       card.querySelector('[class*="Mileage"]');
     if (mileEl) {
@@ -395,7 +402,9 @@
       results.push({
         el: card,
         price: { value: price, unit: "EUR" },
-        firstRegDate: firstRegDate ? { value: firstRegDate, unit: "MM/YYYY" } : null,
+        firstRegDate: firstRegDate
+          ? { value: firstRegDate, unit: "MM/YYYY" }
+          : null,
         fuelType: { value: fuelType },
         mileage: mileage != null ? { value: mileage, unit: "km" } : null,
         powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
