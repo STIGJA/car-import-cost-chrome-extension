@@ -2,7 +2,6 @@
  * settings.js — Read/write extension settings via chrome.storage.sync.
  *
  * Available settings:
- *   postcode            {string}  Reference postcode (kept for future use)
  *   fixedCosts          {number}  Fixed administrative costs (RDW fees, inspection, etc.)
  *   transportByCountry  {object}  Fixed transport cost per origin country code
 
@@ -17,7 +16,6 @@ export const TRANSPORT_DEFAULTS = {
 };
 
 export const SETTING_DEFAULTS = {
-  postcode:           '',
   fixedCosts:         170,
   transportByCountry: TRANSPORT_DEFAULTS,
 
