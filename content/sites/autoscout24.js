@@ -60,7 +60,7 @@
         return "electric";
       if (t.includes("diesel")) return "diesel";
       if (t.includes("hybrid") || t.includes("phev")) return "hybrid";
-      // FR: "électrique" / "lectrique" (with or without leading é)
+      // FR: "électrique" / "lectrique" (with or without leading é) 
       if (t.includes("lectrique")) return "electric";
       // FR: "Hybride"
       if (t.includes("hybride")) return "hybrid";
@@ -73,8 +73,9 @@
     if (/\belectric\b|\bbev\b|\bev\b/.test(l)) return "electric";
     // "Elektro" (Duits voor elektrisch rijden) wel, "elektrische" (bijv. stoel) niet
     if (/\belektro\b/.test(l)) return "electric";
+    if (/\bstrom\b/.test(l)) return "electric";
     // FR: "électrique" als zelfstandig token
-    if (/\blectrique\b/.test(l)) return "electric";
+    if (/\belectrique\b/.test(l)) return "electric";
     if (l.includes("diesel")) return "diesel";
     if (l.includes("hybrid") || l.includes("phev") || l.includes("hybride"))
       return "hybrid";
@@ -193,11 +194,14 @@
       "Eerste registratie",      // NL (.nl)
       "Eerste inschrijving",     // NL-BE (.be/nl) \u2190 the fix
       "1\u00e8re mise en circulation", // FR
+      "Bouwjaar",
       "Mise en circulation",     // FR fallback
+      "Année"
     ]);
     const fuelRaw =
       scrapeDetailValue([
         "Kraftstoff",   // DE
+        "Anderer Energieträger",
         "Fuel type",    // EN
         "Brandstof",    // NL/BE
         "Carburant",    // FR
@@ -208,7 +212,9 @@
       "CO2 emissions",             // EN
       "CO2-uitstoot",              // NL
       "CO2-emissies",              // NL-BE \u2190 added
+      "CO2-emissie",
       "\u00c9missions CO2",        // FR (uppercase \u00c9)
+      "Émissions de CO2",
       "Emissions CO2",             // FR plain
       "\u00e9missions de CO2",     // FR lower
       "CO\u2082",                  // generic fallback
@@ -218,6 +224,7 @@
       "Power",     // EN
       "Vermogen",  // NL/BE
       "Puissance", // FR
+      "Puissance kW (CH)",
     ]);
     const euroRaw = scrapeDetailValue([
       "Schadstoffklasse",           // DE
@@ -226,6 +233,7 @@
       "Emissieklasse",              // NL-BE (same)
       "Classe d\u2019\u00e9mission", // FR
       "Classe d'emission",          // FR plain
+      "Carburant",
       "Euro",                       // generic fallback
     ]);
     const mileageRaw = scrapeDetailValue([
