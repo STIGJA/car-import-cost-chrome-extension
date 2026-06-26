@@ -14,6 +14,20 @@
     return null;
   }
 
+  function shouldCalculateImport(site, listing) {
+    if (!listing) return false;
+
+    if (site.name === "autoscout24") {
+      const importRelevant =
+        listing.importRelevant ??
+        (listing.country != null && listing.country !== "nl");
+
+      return importRelevant;
+    }
+
+    return true;
+  }
+
   const settings = await new Promise((resolve) =>
     chrome.storage.sync.get(
       { fixedCosts: 200, transportByCountry: null },
@@ -30,19 +44,12 @@
       match: () => host.includes("autoscout24"),
       scraper: () => window.CIC_AS24,
       calc: () => window.CIC_NL,
-      // Detail page URL patterns per locale:
-      //   DE/AT/CH: /angebote/
-      //   FR:       /offres/
-      //   NL/BE:    /aanbod/
-      //   IT:       /annunci/
-      //   EN:       /listings/ (future-proof)
       isListing: () =>
         /\/(angebote|annonces|offres|aanbod|annunci|listings)\//.test(path),
       listingAnchor: () =>
         document.querySelector('[data-testid="price-section"]') ??
         document.querySelector('[data-testid="regular-price"]'),
       listingInsertMethod: () => "afterend",
-      // null = append inside the card (no container gap)
       searchCardWrapper: () => null,
     },
     {
@@ -53,9 +60,6 @@
         host === "mobile.de",
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
-      // Listing URL patterns:
-      //   New-style: /fahrzeuge/details.html?id=XXXXX
-      //   Old-style: /auto-inserat/<slug>/<id>.html
       isListing: () =>
         path.startsWith("/fahrzeuge/details.html") ||
         path.startsWith("/auto-inserat/"),
@@ -71,15 +75,11 @@
         if (
           anchorEl.tagName.toLowerCase() === "article" &&
           anchorEl.dataset?.testid === "vip-price-box"
-        )
+        ) {
           return "beforeend";
+        }
         return "afterend";
       },
-      // Mobile.de search cards are <a> elements (inline-level), so a <div>
-      // appended inside them doesn't get a block width from the parent grid.
-      // Instead, inject the widget as a sibling AFTER the <a> card by
-      // returning the card element itself as the wrapper — the renderer will
-      // call insertAdjacentElement("afterend", widget) on it.
       searchCardWrapper: (cardEl) => cardEl,
     },
   ];
@@ -149,6 +149,8 @@
   }
 
   for (const listing of cards) {
+    if (!shouldCalculateImport(site, listing)) continue;
+
     const result = calc.calculate(listing, settings);
     if (result) {
       const wrapper = site.searchCardWrapper(listing.el);
@@ -159,15 +161,23 @@
   const observer = new MutationObserver(() => {
     const newCards = scraper.scrapeSearchPage();
     if (!newCards) return;
+
     for (const listing of newCards) {
       if (listing.el.querySelector(".cic-compact")) continue;
+
       const wrapper = site.searchCardWrapper(listing.el);
-      if (wrapper?.nextElementSibling?.classList?.contains("cic-compact"))
+      if (wrapper?.nextElementSibling?.classList?.contains("cic-compact")) {
         continue;
+      }
+
+      if (!shouldCalculateImport(site, listing)) continue;
+
       const result = calc.calculate(listing, settings);
-      if (result)
+      if (result) {
         window.CIC_Renderer.injectSearchWidget(result, listing.el, wrapper);
+      }
     }
   });
+
   observer.observe(document.body, { childList: true, subtree: true });
 })();

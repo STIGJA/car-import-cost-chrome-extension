@@ -8,6 +8,7 @@
     "*://*.autoscout24.be/*",
     "*://*.autoscout24.de/*",
     "*://*.autoscout24.fr/*",
+    "*://*.autoscout24.nl/*",
     "*://suchen.mobile.de/*",
     "*://www.mobile.de/*",
     "*://mobile.de/*"
@@ -25,7 +26,8 @@
       "matches": [
         "*://*.autoscout24.be/*",
         "*://*.autoscout24.de/*",
-        "*://*.autoscout24.fr/*"
+        "*://*.autoscout24.fr/*",
+        "*://*.autoscout24.nl/*"
       ],
       "js": [
         "content/lookups/co2-lookup.js",

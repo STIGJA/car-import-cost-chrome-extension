@@ -375,67 +375,107 @@
     return null;
   }
 
-  function scrapeSearchPage() {
-    const cards = document.querySelectorAll(
-      'article[data-testid="list-item"], article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
-    );
-    if (!cards.length) return null;
 
-    const results = [];
-    for (const card of cards) {
-      const price = scrapePriceFromCard(card);
-      if (!price) continue;
+  function normalizeCountryCode(raw) {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
 
-      const allText = Array.from(card.querySelectorAll("*"))
-        .map((el) => el.childNodes)
-        .reduce((acc, nodes) => {
-          for (const n of nodes)
-            if (n.nodeType === Node.TEXT_NODE) acc.push(n.textContent.trim());
-          return acc;
-        }, [])
-        .filter(Boolean)
-        .join(" ");
+  if (v === "de" || v.includes("germany") || v.includes("duitsland")) return "de";
+  if (v === "nl" || v.includes("netherlands") || v.includes("nederland")) return "nl";
 
-      const firstRegDate = parseFirstRegFromCard(card);
-      const year = firstRegDate
-        ? parseInt(firstRegDate.split("/")[1], 10)
-        : null;
+  return v.length === 2 ? v : null;
+}
 
-      // Brandstof uit specifiek element lezen om valse 'electric' matches te vermijden.
-      // FR search cards use data-testid="VehicleDetails-gaspump" for the fuel pill.
-      const fuelEl =
-        card.querySelector('[data-testid="VehicleDetails-gaspump"]') ??
-        card.querySelector('[data-testid="listing-item-fuel-type"]') ??
-        card.querySelector('[data-testid="fuel-type"]') ??
-        card.querySelector('[class*="FuelType"]') ??
-        card.querySelector('[class*="fuel"]');
-      const fuelType = normalizeFuelType(allText, fuelEl);
+function detectListingCountry(card) {
+  // 1. Beste bron: expliciet attribuut op de kaart
+  const attrCountry = card.getAttribute("data-listing-country");
+  const normalizedAttr = normalizeCountryCode(attrCountry);
+  if (normalizedAttr) return normalizedAttr;
 
-      // Vermogen parsen \u2014 FR cards use data-testid="VehicleDetails-speedometer"
-      const powerEl =
-        card.querySelector('[data-testid="VehicleDetails-speedometer"]') ??
-        card.querySelector('[data-testid="listing-item-power"]') ??
-        card.querySelector('[class*="Power"]') ??
-        card.querySelector('[class*="power"]');
-      const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
-
-      const mileage = parseMileageFromCard(card);
-
-      results.push({
-        el: card,
-        price: { value: price, unit: "EUR" },
-        firstRegDate: firstRegDate
-          ? { value: firstRegDate, unit: "MM/YYYY" }
-          : null,
-        fuelType: { value: fuelType },
-        mileage: mileage != null ? { value: mileage, unit: "km" } : null,
-        powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
-        euroNorm: null,
-        co2: buildCO2Field(fuelType, null, powerKw, year, null),
-      });
-    }
-    return results.length ? results : null;
+  // 2. Fallback: dealer-adres, bv. "NL-3972 KB DRIEBERGEN-RIJSENBURG"
+  const addressEl = card.querySelector('[data-testid="dealer-address"]');
+  const addressText = addressEl?.textContent?.trim() ?? "";
+  const prefixMatch = addressText.match(/\b([A-Z]{2})-/i);
+  if (prefixMatch) {
+    const normalizedPrefix = normalizeCountryCode(prefixMatch[1]);
+    if (normalizedPrefix) return normalizedPrefix;
   }
+
+  // 3. Optionele fallback: locale/domein, alleen als laatste redmiddel
+  const host = window.location.hostname.toLowerCase();
+  if (host.endsWith(".de")) return "de";
+  if (host.endsWith(".nl")) return "nl";
+
+  return null;
+}
+
+function isImportRelevantCountry(country) {
+  return country != null && country !== "nl";
+}
+
+  function scrapeSearchPage() {
+  const cards = document.querySelectorAll(
+    'article[data-testid="list-item"], article[data-testid="listing-item"], article[class*="ListItem"], article[id*="listing"]',
+  );
+  if (!cards.length) return null;
+
+  const results = [];
+  for (const card of cards) {
+    const price = scrapePriceFromCard(card);
+    if (!price) continue;
+
+    const country = detectListingCountry(card);
+    const importRelevant = isImportRelevantCountry(country);
+
+    const allText = Array.from(card.querySelectorAll("*"))
+      .map((el) => el.childNodes)
+      .reduce((acc, nodes) => {
+        for (const n of nodes)
+          if (n.nodeType === Node.TEXT_NODE) acc.push(n.textContent.trim());
+        return acc;
+      }, [])
+      .filter(Boolean)
+      .join(" ");
+
+    const firstRegDate = parseFirstRegFromCard(card);
+    const year = firstRegDate
+      ? parseInt(firstRegDate.split("/")[1], 10)
+      : null;
+
+    const fuelEl =
+      card.querySelector('[data-testid="VehicleDetails-gaspump"]') ??
+      card.querySelector('[data-testid="listing-item-fuel-type"]') ??
+      card.querySelector('[data-testid="fuel-type"]') ??
+      card.querySelector('[class*="FuelType"]') ??
+      card.querySelector('[class*="fuel"]');
+    const fuelType = normalizeFuelType(allText, fuelEl);
+
+    const powerEl =
+      card.querySelector('[data-testid="VehicleDetails-speedometer"]') ??
+      card.querySelector('[data-testid="listing-item-power"]') ??
+      card.querySelector('[class*="Power"]') ??
+      card.querySelector('[class*="power"]');
+    const powerKw = parsePowerKw(powerEl?.textContent ?? allText);
+
+    const mileage = parseMileageFromCard(card);
+
+    results.push({
+      el: card,
+      country,              // nieuw
+      importRelevant,       // nieuw
+      price: { value: price, unit: "EUR" },
+      firstRegDate: firstRegDate
+        ? { value: firstRegDate, unit: "MM/YYYY" }
+        : null,
+      fuelType: { value: fuelType },
+      mileage: mileage != null ? { value: mileage, unit: "km" } : null,
+      powerKw: powerKw ? { value: powerKw, unit: "kW" } : null,
+      euroNorm: null,
+      co2: buildCO2Field(fuelType, null, powerKw, year, null),
+    });
+  }
+  return results.length ? results : null;
+}
 
   root.CIC_AS24 = { scrapeListingPage, scrapeSearchPage };
 })(window);

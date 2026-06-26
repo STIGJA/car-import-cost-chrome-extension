@@ -214,7 +214,7 @@
     const diff = Math.abs(scraped - estimated);
     const pct = Math.round((diff / scraped) * 100);
     if (diff >= 15 || pct >= 10) {
-      console.warn(
+      console.log(
         `[CarImport] CO\u2082-afwijking${label ? " (" + label + ")" : ""}: ` +
           `pagina ${scraped}\u00a0g/km vs schatting ${estimated}\u00a0g/km ` +
           `(verschil ${scraped > estimated ? "+" : ""}${scraped - estimated}\u00a0g/km, ${pct}%). ` +
