@@ -6,12 +6,19 @@
  * DETAILPAGINA (suchen.mobile.de/fahrzeuge/details.html?id=XXXXX):
  *   Prijs            : [data-testid="vip-price-label"]        → "16.990\u00a0€"
  *   Kilometerstand   : [data-testid="mileage-item"]           → label+waarde als één blok
- *   Vermogen         : [data-testid="power-item"]             → "Leistung110\u00a0kW\u00a0(150\u00a0PS)"
+ *   Vermogen         : [data-testid="power-item"]             → dt zelf; dd is nextElementSibling
  *   Brandstof        : [data-testid="fuel-item"]              → "KraftstoffartDiesel"
  *   Motortype        : [data-testid="envkv.engineType-item"]  → "AntriebsartVerbrennungsmotor"
  *   CO2              : [data-testid="envkv.co2Emissions-item"]→ "CO\u2082-Emissionen (komb.)\u00b2143\u00a0g/km"
- *   Eerste registratie: [data-testid="firstRegistration-item"] → "Erstzulassung03/2019"
- *   Euro-norm        : [data-testid="emissionClass-item"]     → "SchadstoffklasseEuro6"
+ *   Eerste registratie: [data-testid="firstRegistration-item"] → dt zelf; dd is nextElementSibling → "05/2018"
+ *   Euro-norm        : [data-testid="emissionClass-item"]     → dt zelf; dd is nextElementSibling → "Euro6"
+ *   Umweltplakette   : [data-testid="emissionsSticker-item"]  → dt zelf; dd is nextElementSibling → "4 Grün"
+ *
+ * Mobile.de DOM structuur technische data (<dl>):
+ *   <dt data-testid="power-item">Leistung</dt>
+ *   <dd class="nuAmT">115 kW 156 PS</dd>
+ *   De data-testid zit op de <dt> zelf, niet op een wrapper. readItemValue
+ *   detecteert dit via tagName === "DT" en leest de nextElementSibling <dd>.
  *
  * ZOEKPAGINA (suchen.mobile.de/fahrzeuge/search.html):
  *   Kaart container  : [data-testid^="result-listing-"] gefilterd op /^result-listing-\d+$/
@@ -60,21 +67,29 @@
   /**
    * Lees de waarde uit een Mobile.de *-item element.
    *
-   * Mobile.de structuur (geverifieerd op detailpagina):
-   *   De container [data-testid="X-item"] bevat label én waarde als aaneengesloten
-   *   tekst: bijv. "Kilometerstand135.000\u00a0km". Er is geen aparte <dd>.
+   * Mobile.de heeft twee DOM-patronen voor [data-testid="X-item"]:
    *
-   * Strategie (meest robuust → minst robuust):
-   *  1. <dt> / <dd> paar binnen het element (zal werken als Mobile.de ooit
-   *     naar semantische markup overschakelt).
-   *  2. Knip de bekende labelstring weg en geef de rest.
-   *  3. Geef de volledige tekst terug (caller bepaalt zelf wat te doen).
+   *  A) data-testid op een wrapper-div die zowel label als waarde bevat
+   *     (bijv. mileage-item, fuel-item in de key-features box).
+   *     Strategie: zoek interne <dt>/<dd>, of knip het label weg uit de tekst.
+   *
+   *  B) data-testid op de <dt> zelf in de technische-data <dl>
+   *     (bijv. power-item, firstRegistration-item, emissionClass-item).
+   *     Structuur:  <dt data-testid="X-item">Label</dt>
+   *                 <dd class="nuAmT">Waarde</dd>
+   *     Strategie: element IS de <dt>; lees nextElementSibling <dd>.
    */
   function readItemValue(testid, labelStrings) {
     const el = document.querySelector(`[data-testid="${testid}"]`);
     if (!el) return null;
 
-    // Strategie 1: semantische <dt>/<dd>
+    // Patroon B: het element zelf is een <dt> → waarde zit in de volgende <dd>
+    if (el.tagName === "DT") {
+      const dd = el.nextElementSibling;
+      if (dd && dd.tagName === "DD") return cleanText(dd);
+    }
+
+    // Patroon A – Strategie 1: semantische <dt>/<dd> binnen het element
     const dt = el.querySelector("dt");
     if (dt) {
       const dd = dt.nextElementSibling;
@@ -83,7 +98,7 @@
     const dd = el.querySelector("dd");
     if (dd) return cleanText(dd);
 
-    // Strategie 2: label weghalen uit gecleande tekst
+    // Patroon A – Strategie 2: label weghalen uit gecleande tekst
     const full = cleanText(el);
     if (labelStrings) {
       for (const lbl of labelStrings) {
@@ -95,7 +110,7 @@
       }
     }
 
-    // Strategie 3: geef volledige tekst (label + waarde) terug
+    // Patroon A – Strategie 3: geef volledige tekst (label + waarde) terug
     return full || null;
   }
 
@@ -159,12 +174,13 @@
     }
 
     // --- Kilometerstand ---
-    // [data-testid="mileage-item"] → "Kilometerstand135.000\u00a0km"
+    // [data-testid="mileage-item"] → wrapper-div, label+waarde aaneengesloten
     const mileageRaw = readItemValue("mileage-item", ["Kilometerstand", "Mileage"]);
     const mileage = mileageRaw ? parseNumber(mileageRaw) : null;
 
     // --- Vermogen ---
-    // [data-testid="power-item"] → "Leistung110\u00a0kW\u00a0(150\u00a0PS)"
+    // [data-testid="power-item"] → <dt> in technische-data <dl>; <dd> is nextElementSibling
+    // Waarde: "115 kW 156 PS"
     const powerRaw = readItemValue("power-item", ["Leistung", "Power"]);
     const powerKw = parsePowerKw(powerRaw);
 
@@ -187,20 +203,18 @@
     const co2Scraped = co2Raw ? parseNumber(co2Raw) : null;
 
     // --- Eerste registratie ---
-    // [data-testid="firstRegistration-item"] → "Erstzulassung03/2019"
-    // Waarde is direct het datumgedeelte na het label.
+    // [data-testid="firstRegistration-item"] → <dt> in technische-data <dl>
+    // <dd> bevat: "052018" (aaneengesloten) of "05/2018"
     let firstRegDate = null;
     const regRaw = readItemValue("firstRegistration-item", [
       "Erstzulassung",
       "First registration",
     ]);
     if (regRaw) {
-      // Formaat: "03/2019" of "MM/YYYY"
-      const m = regRaw.match(/(\d{1,2}[\/.\-]\d{4})/);
+      // Formaat uit <dd>: "052018" (geen scheidingsteken) of "05/2018" of "05.2018"
+      const m = regRaw.match(/(\d{1,2})[\/.\-]?(\d{4})/);
       if (m) {
-        // Normaliseer naar MM/YYYY
-        const normalized = m[1].replace(/[.\-]/, "/");
-        firstRegDate = { value: normalized, unit: "MM/YYYY" };
+        firstRegDate = { value: `${m[1].padStart(2, "0")}/${m[2]}`, unit: "MM/YYYY" };
       }
     }
     // Fallback: zoek in paginatekst naar "EZ MM/YYYY"
@@ -210,7 +224,8 @@
     }
 
     // --- Euro-norm ---
-    // [data-testid="emissionClass-item"] → "SchadstoffklasseEuro6"
+    // [data-testid="emissionClass-item"] → <dt> in technische-data <dl>
+    // <dd> bevat: "Euro6"
     const euroRaw = readItemValue("emissionClass-item", [
       "Schadstoffklasse",
       "Emission class",
@@ -219,6 +234,11 @@
     const euroNorm = euroRaw
       ? (euroRaw.match(/Euro\s*\d[a-z]?/i)?.[0] ?? null)
       : null;
+
+    // --- Umweltplakette ---
+    // [data-testid="emissionsSticker-item"] → <dt> in technische-data <dl>
+    // <dd> bevat: "4 Grün" — wordt gebruikt door de CO2-schatting via euroNorm
+    // (geen apart veld nodig; euroNorm is leidend voor de berekening)
 
     const year = firstRegDate
       ? parseInt(firstRegDate.value.split("/")[1])
