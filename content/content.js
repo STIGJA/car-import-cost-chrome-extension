@@ -39,11 +39,6 @@
       isListing: () =>
         /\/(angebote|annonces|aanbod|annunci|offres)\//.test(path),
       listingAnchor: () => {
-        // AutoScout24 detail page — the price block sits inside an <aside>
-        // or a sticky sidebar div. Try known selectors in order of specificity.
-        // NOTE: [data-testid="price-section"] exists only on search cards, NOT
-        // on detail pages. On the detail page the price lives in a section/div
-        // with class containing "cldt-price" or inside an <aside>.
         return (
           document.querySelector('[data-testid="price-section"]') ??
           document.querySelector('[class*="cldt-price-section"]') ??
@@ -65,21 +60,22 @@
       match: () => host === "suchen.mobile.de",
       scraper: () => window.CIC_MDE,
       calc: () => window.CIC_NL,
-      isListing: () => path.startsWith("/fahrzeuge/details.html"),
+      // mobile.de has two detail page URL patterns:
+      //   1. /fahrzeuge/details.html?id=XXXXX   (old query-string style)
+      //   2. /auto-inserat/<slug>/<id>           (canonical SEO slug, used on
+      //                                           most listing pages since 2024)
+      // Both render the same DOM with vip-price-box / vip-price-label.
+      isListing: () =>
+        path.startsWith("/fahrzeuge/details.html") ||
+        path.startsWith("/auto-inserat/"),
       listingAnchor: () => {
         // mobile.de detail page DOM structure:
         //   <div data-testid="vip-price-box">
         //     <section>
-        //       ...
-        //       <div data-testid="vip-price-label">17.860 €</div>
-        //       ...
+        //       <div data-testid="vip-price-label">23.900 €</div>
         //     </section>
         //   </div>
-        //
-        // We want to insert the widget AFTER the entire vip-price-box div.
-        // Walk up from the price label and stop as soon as we find an ancestor
-        // with data-testid="vip-price-box". Fall back to section / article if
-        // the structure ever changes.
+        // Insert the widget AFTER the entire vip-price-box div.
 
         // 1. Try the vip-price-box container directly first
         const priceBox = document.querySelector('[data-testid="vip-price-box"]');
@@ -96,11 +92,9 @@
           for (let i = 0; i < 8; i++) {
             const parent = el.parentElement;
             if (!parent) break;
-            // Stop at the dedicated price box
             if (parent.getAttribute("data-testid") === "vip-price-box") return parent;
             const tag = parent.tagName.toLowerCase();
             if (tag === "section" || tag === "article") return parent;
-            // Stop if we've reached a layout root
             if (tag === "aside" || tag === "main" || tag === "body") return el;
             el = parent;
           }
@@ -132,8 +126,6 @@
   if (site.name === "mobile.de") {
     isSearchPage = path.startsWith("/fahrzeuge/search.html");
   } else {
-    // autoscout24: treat any non-listing page as a potential search page
-    // common search paths: /lst/, /results/, /search/
     isSearchPage = !isListing;
   }
 
