@@ -459,7 +459,7 @@
       if (!price) continue;
 
       const country = detectListingCountry(card);
-      const importRelevant = country == null || country !== "nl";
+      const importRelevant = country !== "nl";
 
       const allText = Array.from(card.querySelectorAll("*"))
         .map((el) => el.childNodes)
