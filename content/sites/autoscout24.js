@@ -25,7 +25,8 @@
     if (!raw) return null;
     const cleaned = raw
       .replace(/[\u00b9\u00b2\u00b3\u2070-\u2079]/g, "")
-      .replace(/\s+\d+$/, "")
+      // Only strip trailing footnote numbers (1-2 digits), not price parts like " 700"
+      .replace(/\s+\d{1,2}$/, "")
       .replace(/[^0-9]/g, "");
     return cleaned ? parseInt(cleaned, 10) : null;
   }
@@ -93,12 +94,12 @@
    * Scrapes the price from a detail/listing page.
    *
    * Strategy:
-   *  1. Try [data-testid="price-section"] (autoscout24.de / .nl / .be)
-   *  2. Fall back to [data-testid="regular-price"] which is present on
-   *     autoscout24.fr and is the same element used in search cards.
+   *  1. Try [data-testid="price-section"] (all locales incl. FR)
+   *  2. Fall back to [data-testid="regular-price"]
+   *  3. Generic span/strong scan
    */
   function scrapePrice() {
-    // Strategy 1: DE/NL/BE — dedicated price section wrapper
+    // Strategy 1: dedicated price section wrapper (present on all locales)
     const section = document.querySelector('[data-testid="price-section"]');
     if (section) {
       for (const span of section.querySelectorAll("span")) {
@@ -120,7 +121,7 @@
       }
     }
 
-    // Strategy 2: FR — [data-testid="regular-price"] is present directly on the page
+    // Strategy 2: [data-testid="regular-price"] fallback
     const regularPriceEl = document.querySelector('[data-testid="regular-price"]');
     if (regularPriceEl) {
       const val = parsePrice(regularPriceEl.textContent);
