@@ -68,7 +68,9 @@
           'article[data-testid="vip-price-box"]',
         );
         if (priceBox) return priceBox.querySelector("section") ?? priceBox;
-        return document.querySelector('[data-testid="vip-price-label"]') ?? null;
+        return (
+          document.querySelector('[data-testid="vip-price-label"]') ?? null
+        );
       },
       listingInsertMethod: (anchorEl) => {
         if (!anchorEl) return "afterend";
@@ -116,6 +118,11 @@
       return;
     }
 
+    if (!shouldCalculateImport(site, listing)) {
+      console.log("[CarImport] Dutch listing — widget suppressed");
+      return;
+    }
+
     const result = calc.calculate(listing, settings);
     if (!result) return;
 
@@ -126,7 +133,9 @@
       await new Promise((r) => setTimeout(r, 300));
     }
     if (!anchor) {
-      console.warn("[CarImport] Price anchor not found — widget not injectable");
+      console.warn(
+        "[CarImport] Price anchor not found — widget not injectable",
+      );
       return;
     }
 
