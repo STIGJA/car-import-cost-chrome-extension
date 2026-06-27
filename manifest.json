@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Car Import Cost Calculator",
+  "name": "Import kosten calculator (BPM)",
   "version": "1.0.0",
-  "description": "Toont Nederlandse importkosten direct op AutoScout24 en Mobile.de",
+  "description": "Toont Nederlandse importkosten zoals BPM direct op AutoScout24 en Mobile.de",
   "permissions": ["storage"],
   "host_permissions": [
     "*://*.autoscout24.be/*",
