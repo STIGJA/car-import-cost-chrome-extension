@@ -215,3 +215,24 @@ td:last-child {
   font-size: 12px;
   background-color: #000;
 }
+
+/* Footer donate button */
+footer {
+  padding: 8px 14px 12px;
+  border-top: 1px solid #222;
+}
+
+.btn-donate {
+  background: none;
+  color: #888;
+  font-size: 11px;
+  font-weight: 400;
+  margin-top: 0;
+  padding: 4px 0;
+  text-align: center;
+  transition: color 0.15s;
+}
+.btn-donate:hover {
+  background: none;
+  color: #F78737;
+}

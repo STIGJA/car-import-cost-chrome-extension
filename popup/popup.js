@@ -40,6 +40,13 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 // ---------------------------------------------------------------------------
+// Donate
+// ---------------------------------------------------------------------------
+document.getElementById("donateBtn")?.addEventListener("click", () => {
+  chrome.tabs.create({ url: "https://paypal.me/importkosten" });
+});
+
+// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 const settings = await getSettings();
