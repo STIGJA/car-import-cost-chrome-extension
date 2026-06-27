@@ -55,7 +55,7 @@
     const months = ageMonthsFrom(firstReg);
     const isNew = months != null && months < 6;
     const years = ageYearsFrom(firstReg);
-    const regYear = registrationYearFrom(firstReg);
+    const regYear = registrationYearFrom(firstReg) ?? listing.year?.value ?? new Date().getFullYear();
 
     const vat = isNew ? Math.round(price * 0.21) : 0;
     const gross = bpmBruto(co2, fuelType, regYear);
@@ -68,6 +68,8 @@
     const bpmApprox = co2Estimated;
 
     const total = Math.round(price + vat + bpmExact + transport + fixedCosts);
+    // Totaal afronden op €100 en ~ tonen als BPM geschat is
+    const totalDisplay = bpmApprox ? Math.round(total / 100) * 100 : total;
 
     return {
       settings: { country: { value: "NL", label: "Bestemmingsland" } },
@@ -121,7 +123,8 @@
         {
           key: "total",
           label: "Totaal",
-          value: total,
+          value: totalDisplay,
+          approx: bpmApprox,
           unit: "EUR",
           included: true,
           isTotal: true,
